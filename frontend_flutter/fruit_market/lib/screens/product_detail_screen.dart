@@ -6,9 +6,9 @@ import '../providers/auth_provider.dart';
 import '../providers/favorite_provider.dart';
 import '../providers/review_provider.dart';
 import '../widgets/product_reviews_widget.dart';
-import 'cart_screen.dart';
+// import 'cart_screen.dart';
 import 'login_screen.dart';
-import 'checkout_screen.dart';  // Thêm import này
+import 'checkout_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;

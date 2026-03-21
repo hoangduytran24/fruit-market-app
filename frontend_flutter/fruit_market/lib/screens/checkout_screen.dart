@@ -5,7 +5,8 @@ import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
 import '../models/product.dart';
 import '../models/CartItem.dart';
-import '../models/Order.dart';  // SỬA: import Order.dart (viết hoa)
+import '../models/Order.dart';
+import '../utils/image_utils.dart';
 import 'order_success_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -857,6 +858,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildProductItem(CheckoutItem item) {
+    // SỬA: dùng ImageUtils để lấy URL ảnh
+    final imageUrl = ImageUtils.getOriginalImage(item.imageUrl);
+    
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -868,24 +872,64 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+            child: imageUrl != null && imageUrl.isNotEmpty
                 ? Image.network(
-                    _getFullImageUrl(item.imageUrl!),
+                    imageUrl,
                     width: 70,
                     height: 70,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 70,
-                      height: 70,
-                      color: Colors.grey[200],
-                      child: const Icon(Icons.image, size: 30, color: Colors.grey),
-                    ),
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        width: 70,
+                        height: 70,
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      print('❌ Error loading image: $error');
+                      return Container(
+                        width: 70,
+                        height: 70,
+                        color: Colors.grey[200],
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.broken_image, size: 30, color: Colors.grey[400]),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Lỗi tải',
+                              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   )
                 : Container(
                     width: 70,
                     height: 70,
                     color: Colors.grey[200],
-                    child: const Icon(Icons.image, size: 30, color: Colors.grey),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.image, size: 30, color: Colors.grey[400]),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Không có ảnh',
+                          style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
                   ),
           ),
           const SizedBox(width: 12),
@@ -938,13 +982,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  String _getFullImageUrl(String imageUrl) {
-    if (imageUrl.startsWith('http')) return imageUrl;
-    if (imageUrl.startsWith('/')) {
-      return 'https://10.0.2.2:7262$imageUrl';
-    }
-    return 'https://10.0.2.2:7262/$imageUrl';
-  }
+  // XÓA method _getFullImageUrl vì đã dùng ImageUtils
 
   @override
   void dispose() {
