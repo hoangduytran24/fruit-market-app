@@ -19,6 +19,9 @@ class ProductProvider extends ChangeNotifier {
   int _totalCount = 0;
   String? _searchKeyword;
   String? _selectedCategoryId;
+  
+  // Cache cho từng trang
+  Map<int, List<Product>> _pageCache = {};
 
   // Getters
   List<Product> get products => _products;
@@ -38,33 +41,36 @@ class ProductProvider extends ChangeNotifier {
 
   final ProductService _productService = ProductService();
 
-  // Tải danh sách sản phẩm
+  // Tải danh sách sản phẩm - KHÔNG HIỂN THỊ LOADING
   Future<void> loadProducts({bool refresh = false}) async {
-    // Chống gọi đồng thời
-    if (_isFetching) {
+    if (_isFetching && !refresh) {
       print('⏳ Đang fetch products, bỏ qua request');
+      return;
+    }
+    
+    // Kiểm tra cache trước
+    if (!refresh && _pageCache.containsKey(_currentPage) && _pageCache[_currentPage]!.isNotEmpty) {
+      print('✅ Dùng cache cho trang $_currentPage');
+      _products = _pageCache[_currentPage]!;
+      _hasLoaded = true;
+      notifyListeners();
       return;
     }
     
     if (refresh) {
       _currentPage = 1;
-      _products = [];
       _totalPages = 1;
       _hasLoaded = false;
-    }
-
-    // Nếu đã load và không refresh thì bỏ qua
-    if (_hasLoaded && !refresh && _products.isNotEmpty) {
-      print('✅ Products đã được load trước đó, bỏ qua fetch');
-      return;
+      _pageCache.clear();
+      _products = [];
+      notifyListeners();
     }
 
     if (_isLoading) return;
 
     _isFetching = true;
-    _isLoading = true;
+    // KHÔNG set _isLoading = true để tránh hiển thị loading
     _error = null;
-    notifyListeners();
 
     try {
       print('🔄 Đang tải sản phẩm trang $_currentPage...');
@@ -76,21 +82,21 @@ class ProductProvider extends ChangeNotifier {
         pageSize: 10,
       );
 
-      // SỬA: Xử lý null values từ API response (bỏ currentPage)
-      _products = response.items ?? [];
+      _products = response.items;
       _totalCount = response.totalCount;
-      _totalPages = response.totalPages ?? 1;
+      _totalPages = response.totalPages;
+      
+      // Lưu vào cache
+      _pageCache[_currentPage] = List.from(_products);
       
       print('✅ Đã tải ${_products.length} sản phẩm từ trang $_currentPage');
       print('📊 Tổng số trang: $_totalPages, Tổng số sản phẩm: $_totalCount');
 
       _hasLoaded = true;
-      _isLoading = false;
       _isFetching = false;
       notifyListeners();
     } catch (e) {
       print('❌ Lỗi tải sản phẩm: $e');
-      _isLoading = false;
       _isFetching = false;
       _error = e.toString();
       notifyListeners();
@@ -115,14 +121,16 @@ class ProductProvider extends ChangeNotifier {
         pageSize: 10,
       );
 
-      // SỬA: Xử lý null values
-      final newItems = response.items ?? [];
+      final newItems = response.items;
       print('✅ Đã tải thêm ${newItems.length} sản phẩm');
 
       _products = [..._products, ...newItems];
-      _totalCount = response.totalCount ?? _totalCount;
-      _totalPages = response.totalPages ?? _totalPages;
+      _totalCount = response.totalCount;
+      _totalPages = response.totalPages;
       _currentPage = nextPage;
+      
+      // Lưu vào cache
+      _pageCache[nextPage] = List.from(newItems);
       _hasLoaded = true;
 
       _isLoadingMore = false;
@@ -164,9 +172,10 @@ class ProductProvider extends ChangeNotifier {
         page: 1,
         pageSize: 10,
       );
-      _products = response.items ?? [];
-      _totalCount = response.totalCount ?? 0;
-      _totalPages = response.totalPages ?? 1;
+      _products = response.items;
+      _totalCount = response.totalCount;
+      _totalPages = response.totalPages;
+      _pageCache[1] = List.from(_products);
       _hasLoaded = true;
       notifyListeners();
     } catch (e) {
@@ -174,7 +183,7 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
-  // Chuyển đến trang
+  // Chuyển đến trang - KHÔNG XÓA DỮ LIỆU CŨ, KHÔNG HIỂN THỊ LOADING
   Future<void> goToPage(int page) async {
     if (page < 1 || page > _totalPages || page == _currentPage || _isFetching) {
       print('⚠️ Không thể chuyển trang: page=$page, current=$_currentPage, total=$_totalPages');
@@ -183,9 +192,56 @@ class ProductProvider extends ChangeNotifier {
     
     print('🔄 Chuyển đến trang $page');
     _currentPage = page;
-    _products = [];
-    _hasLoaded = false;
-    await loadProducts(refresh: false);
+    
+    // Kiểm tra cache
+    if (_pageCache.containsKey(page) && _pageCache[page]!.isNotEmpty) {
+      print('✅ Dùng cache cho trang $page');
+      _products = _pageCache[page]!;
+      _hasLoaded = true;
+      notifyListeners();
+      return;
+    }
+    
+    // Không xóa _products, giữ lại dữ liệu cũ cho đến khi dữ liệu mới về
+    // Chỉ gọi load ngầm
+    _loadPageInBackground(page);
+  }
+  
+  // Tải trang ngầm trong background
+  Future<void> _loadPageInBackground(int page) async {
+    if (_isFetching) return;
+    
+    _isFetching = true;
+    
+    try {
+      print('🔄 Background loading trang $page...');
+      
+      final response = await _productService.getProductsWithPagination(
+        keyword: _searchKeyword,
+        categoryId: _selectedCategoryId,
+        page: page,
+        pageSize: 10,
+      );
+      
+      // Lưu vào cache
+      _pageCache[page] = response.items;
+      
+      // Nếu vẫn đang ở trang này, cập nhật hiển thị
+      if (_currentPage == page) {
+        _products = response.items;
+        notifyListeners();
+      }
+      
+      // Cập nhật tổng số
+      _totalCount = response.totalCount;
+      _totalPages = response.totalPages;
+      
+      print('✅ Background loaded trang $page với ${response.items.length} sản phẩm');
+    } catch (e) {
+      print('❌ Background load error: $e');
+    } finally {
+      _isFetching = false;
+    }
   }
 
   // Lọc theo danh mục
@@ -195,9 +251,11 @@ class ProductProvider extends ChangeNotifier {
     _selectedCategoryId = categoryId;
     _searchKeyword = null;
     _currentPage = 1;
+    _pageCache.clear();
     _products = [];
     _hasLoaded = false;
-    await loadProducts(refresh: false);
+    notifyListeners();
+    await loadProducts();
   }
 
   // Tìm kiếm sản phẩm
@@ -210,9 +268,11 @@ class ProductProvider extends ChangeNotifier {
     _searchKeyword = keyword;
     _selectedCategoryId = null;
     _currentPage = 1;
+    _pageCache.clear();
     _products = [];
     _hasLoaded = false;
-    await loadProducts(refresh: false);
+    notifyListeners();
+    await loadProducts();
   }
 
   // Refresh danh sách
@@ -220,9 +280,11 @@ class ProductProvider extends ChangeNotifier {
     _selectedCategoryId = null;
     _searchKeyword = null;
     _currentPage = 1;
+    _pageCache.clear();
     _products = [];
     _hasLoaded = false;
-    await loadProducts(refresh: true);
+    notifyListeners();
+    await loadProducts();
   }
 
   // Xóa bộ lọc tìm kiếm
@@ -254,6 +316,7 @@ class ProductProvider extends ChangeNotifier {
     _totalCount = 0;
     _searchKeyword = null;
     _selectedCategoryId = null;
+    _pageCache.clear();
     notifyListeners();
   }
 
@@ -304,7 +367,7 @@ class ProductProvider extends ChangeNotifier {
         loadBestSellers(),
       ]);
       
-      await loadProducts(refresh: true);
+      await loadProducts();
       
       _isLoading = false;
       _hasLoaded = true;
@@ -328,13 +391,11 @@ class ProductProvider extends ChangeNotifier {
 
   // Tìm sản phẩm trong cache theo ID
   Product? findProductInCache(String productId) {
-    try {
-      return _products.firstWhere(
-        (product) => product.productId == productId,
-        orElse: () => null as Product,
-      );
-    } catch (e) {
-      return null;
+    for (var product in _products) {
+      if (product.productId == productId) {
+        return product;
+      }
     }
+    return null;
   }
 }

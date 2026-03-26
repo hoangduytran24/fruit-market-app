@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using fruit_api.DTOs.Order;
@@ -88,6 +88,11 @@ public class OrdersController : ControllerBase
         try
         {
             var userId = GetUserId();
+            // Đảm bảo ShippingFee có giá trị mặc định nếu không được gửi lên
+            if (createOrderDto.ShippingFee == 0)
+            {
+                createOrderDto.ShippingFee = 25000; // Mặc định 25k
+            }
             var order = await _orderService.CreateOrderAsync(userId, createOrderDto);
             return Ok(order);
         }
@@ -103,6 +108,11 @@ public class OrdersController : ControllerBase
         try
         {
             var userId = GetUserId();
+            // Đảm bảo ShippingFee có giá trị mặc định nếu không được gửi lên
+            if (buyNowDto.ShippingFee == 0)
+            {
+                buyNowDto.ShippingFee = 25000; // Mặc định 25k
+            }
             var order = await _orderService.BuyNowAsync(userId, buyNowDto);
             return Ok(order);
         }

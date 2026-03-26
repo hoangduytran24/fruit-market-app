@@ -6,6 +6,7 @@ import '../providers/product_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/favorite_provider.dart';
 import '../providers/order_provider.dart';
+import '../providers/voucher_provider.dart';
 import 'shop_screen.dart';
 import 'vouchers_screen.dart';
 import 'cart_screen.dart';
@@ -36,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Load dữ liệu sau khi build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitialData();
     });
@@ -50,14 +50,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
     final favoriteProvider = Provider.of<FavoriteProvider>(context, listen: false);
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final voucherProvider = Provider.of<VoucherProvider>(context, listen: false);
     
-    // Kiểm tra và load dữ liệu nếu chưa có
+    // Load tất cả dữ liệu cần thiết ngay từ đầu
     await Future.wait([
       _loadUserData(authProvider),
       _loadProducts(productProvider),
       _loadCategories(categoryProvider),
       _loadFavorites(favoriteProvider, authProvider),
       _loadOrders(orderProvider, authProvider),
+      _loadCart(cartProvider, authProvider),
+      _loadVouchers(voucherProvider, authProvider),
     ]);
     
     _isInitialized = true;
@@ -90,6 +94,24 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadOrders(OrderProvider orderProvider, AuthProvider authProvider) async {
     if (authProvider.isAuthenticated && !orderProvider.hasLoaded) {
       await orderProvider.fetchMyOrders();
+    }
+  }
+
+  Future<void> _loadCart(CartProvider cartProvider, AuthProvider authProvider) async {
+    if (authProvider.isAuthenticated && !cartProvider.hasLoaded) {
+      await cartProvider.loadCart();
+    }
+  }
+
+  Future<void> _loadVouchers(VoucherProvider voucherProvider, AuthProvider authProvider) async {
+    // Load available vouchers
+    if (!voucherProvider.hasLoadedAvailable) {
+      await voucherProvider.loadAvailableVouchers();
+    }
+    
+    // Load saved vouchers nếu đã đăng nhập
+    if (authProvider.isAuthenticated && !voucherProvider.hasLoadedSaved) {
+      await voucherProvider.loadSavedVouchers();
     }
   }
 

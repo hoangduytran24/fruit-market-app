@@ -136,7 +136,7 @@ public class PaymentController : ControllerBase
             }
 
             // Nếu đã thanh toán thành công
-            if (payment.PaymentStatus == "success")
+            if (payment.PaymentStatus == "paid")
             {
                 return Ok(new
                 {
@@ -154,7 +154,7 @@ public class PaymentController : ControllerBase
             if (checkResult.Success)
             {
                 // Cập nhật payment thành công
-                payment.PaymentStatus = "success";
+                payment.PaymentStatus = "paid";
                 payment.TransactionCode = checkResult.TransactionCode;
                 payment.PaidAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();

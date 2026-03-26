@@ -18,6 +18,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isLoading = false;
   bool _isLoadingDetails = true;
   Order? _orderDetails;
+  
+  // Phí vận chuyển cố định
+  static const double _shippingFee = 25000;
 
   @override
   void initState() {
@@ -75,7 +78,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  // Thêm hàm lấy text trạng thái thanh toán
   String _getPaymentStatusText(String? status) {
     switch (status) {
       case 'paid':
@@ -87,7 +89,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  // Thêm hàm lấy màu trạng thái thanh toán
   Color _getPaymentStatusColor(String? status) {
     switch (status) {
       case 'paid':
@@ -99,7 +100,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     }
   }
 
-  // Thêm hàm lấy icon trạng thái thanh toán
   IconData _getPaymentStatusIcon(String? status) {
     switch (status) {
       case 'paid':
@@ -301,7 +301,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                       color: Colors.grey[600],
                                     ),
                                   ),
-                                  if (order.createdAt != null)
+                                  if (order.paymentStatus != null && order.paymentStatus!.isNotEmpty)
                                     Text(
                                       'Ngày đặt: ${_formatDate(order.createdAt)}',
                                       style: TextStyle(
@@ -426,7 +426,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Thông tin thanh toán
+                  // Thông tin thanh toán - THÊM PHÍ SHIP
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -493,6 +493,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                           ),
                         ],
                         const SizedBox(height: 12),
+                        _buildInfoRow(
+                          label: 'Phí vận chuyển',
+                          value: _formatCurrency(_shippingFee),
+                          valueColor: Colors.grey[700],
+                        ),
+                        const SizedBox(height: 12),
                         const Divider(),
                         const SizedBox(height: 8),
                         Row(
@@ -506,7 +512,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               ),
                             ),
                             Text(
-                              _formatCurrency(order.finalAmount),
+                              _formatCurrency(order.finalAmount+ 25000), // Cộng thêm phí ship vào tổng cộng
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -631,70 +637,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-
-                  // Hướng dẫn thanh toán (nếu là chuyển khoản và chưa thanh toán)
-                  if (order.paymentMethod == 'bank_transfer' && 
-                      order.paymentStatus == 'unpaid' &&
-                      order.status != 'cancelled') ...[
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.blue[200]!),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.info_outline, color: Colors.blue[700]),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Hướng dẫn thanh toán',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Vui lòng chuyển khoản đến số tài khoản:',
-                            style: TextStyle(fontSize: 13, color: Colors.blue[800]),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              children: [
-                                _buildBankInfoRow('Ngân hàng:', 'MB Bank'),
-                                const SizedBox(height: 8),
-                                _buildBankInfoRow('Số tài khoản:', '0584058202'),
-                                const SizedBox(height: 8),
-                                _buildBankInfoRow('Chủ tài khoản:', 'TRAN DUY HOANG'),
-                                const SizedBox(height: 8),
-                                _buildBankInfoRow('Nội dung:', 'DH${order.orderId}'),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Sau khi chuyển khoản, hệ thống sẽ tự động xác nhận thanh toán.',
-                            style: TextStyle(fontSize: 12, color: Colors.blue[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-
                   const SizedBox(height: 80),
                 ],
               ),
@@ -730,19 +672,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ),
             textAlign: TextAlign.right,
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBankInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 13)),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ],
     );

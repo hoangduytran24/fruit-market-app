@@ -23,7 +23,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   int _quantity = 1;
   bool _isLoading = false;
   bool _isDetailExpanded = true;
-  int _reviewCount = 0;
 
   // Biến kiểm tra đã gọi API
   bool _hasCheckedFavorite = false;
@@ -62,9 +61,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   void _updateReviewCount(int count) {
-    setState(() {
-      _reviewCount = count;
-    });
+    // Cập nhật số lượng đánh giá (có thể dùng sau này)
+    // Hiện tại không cần dùng nhưng giữ lại để có thể sử dụng
   }
 
   @override
@@ -405,11 +403,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   Widget build(BuildContext context) {
     final fullImageUrl = getFullImageUrl();
     final authProvider = Provider.of<AuthProvider>(context);
-    final favoriteProvider = Provider.of<FavoriteProvider>(context);
-
-    final bool isFav = authProvider.isAuthenticated
-        ? favoriteProvider.isFavorite(widget.product.productId)
-        : false;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -866,7 +859,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                                         const SizedBox(height: 8),
                                         _buildInfoRow(
                                           icon: Icons.place_outlined,
-                                          label: 'Xuất xứ',
+                                          label: 'Nguồn gốc / Xuất xứ',
                                           value: 'Đà Lạt, Việt Nam',
                                         ),
                                       ],

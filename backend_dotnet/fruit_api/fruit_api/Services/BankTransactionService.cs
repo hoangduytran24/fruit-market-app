@@ -28,7 +28,7 @@ public class BankTransactionService
             OrderId = orderId,
             PaymentId = paymentId,
             Amount = amount,
-            Status = "pending",
+            Status = "pending",  // pending transaction status
             CheckCount = 0,
             CreatedAt = DateTime.Now
         };
@@ -65,12 +65,25 @@ public class BankTransactionService
         _logger.LogInformation($"Checking transaction for order {orderId}, count: {pendingTx.CheckCount}");
 
         // MÔ PHỎNG: Sau 6 lần kiểm tra (30 giây) thì tự động thành công
-        // 6 lần x 5 giây = 30 giây
         if (pendingTx.CheckCount >= 6)
         {
+            // SỬA: Cập nhật PendingTransaction status thành "success" (theo comment trong CSDL)
             pendingTx.Status = "success";
             pendingTx.TransactionCode = "MOCK_" + DateTime.Now.Ticks.ToString();
             await _context.SaveChangesAsync();
+
+            // SỬA: Cập nhật Payment status thành "paid" (theo constraint của bảng Payments)
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.PaymentId == pendingTx.PaymentId);
+
+            if (payment != null)
+            {
+                payment.PaymentStatus = "paid";  // phải là 'paid' vì constraint chỉ chấp nhận 'pending','paid','failed'
+                payment.PaidAt = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"Payment {payment.PaymentId} status updated to: {payment.PaymentStatus}");
+            }
 
             _logger.LogInformation($"Transaction for order {orderId} completed successfully");
 

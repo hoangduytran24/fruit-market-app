@@ -237,7 +237,7 @@ class ProductCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Bạn cần đăng nhập để thêm sản phẩm vào giỏ hàng',
+                  'Bạn cần đăng nhập để thực hiện chức năng này.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Color(0xFF757575),

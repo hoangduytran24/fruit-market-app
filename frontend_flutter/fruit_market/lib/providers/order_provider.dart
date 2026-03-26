@@ -9,27 +9,25 @@ class OrderProvider extends ChangeNotifier {
   Order? _currentOrder;
   bool _isLoading = false;
   String? _error;
-  bool _hasLoaded = false; // THÊM
-  bool _isFetching = false; // THÊM
+  bool _hasLoaded = false;
+  bool _isFetching = false;
 
   // Getters
   List<Order> get orders => _orders;
   Order? get currentOrder => _currentOrder;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get hasLoaded => _hasLoaded; // THÊM
-  bool get isFetching => _isFetching; // THÊM
-  bool get hasOrders => _orders.isNotEmpty; // THÊM
+  bool get hasLoaded => _hasLoaded;
+  bool get isFetching => _isFetching;
+  bool get hasOrders => _orders.isNotEmpty;
   
   // Lấy danh sách đơn hàng
   Future<bool> fetchMyOrders({bool forceRefresh = false}) async {
-    // Nếu đang fetch thì bỏ qua
     if (_isFetching) {
       print('⏳ Đang fetch orders, bỏ qua request');
       return false;
     }
     
-    // Nếu đã load và không force refresh thì bỏ qua
     if (_hasLoaded && !forceRefresh && _orders.isNotEmpty) {
       print('✅ Đã load orders trước đó, bỏ qua fetch');
       return true;
@@ -41,7 +39,7 @@ class OrderProvider extends ChangeNotifier {
     
     try {
       _orders = await _orderService.getUserOrders();
-      _hasLoaded = true; // THÊM
+      _hasLoaded = true;
       _setLoading(false);
       return true;
     } catch (e) {
@@ -86,7 +84,7 @@ class OrderProvider extends ChangeNotifier {
     await fetchMyOrders();
   }
   
-  // THÊM: Load orders silently (không set loading state)
+  // Load orders silently (không set loading state)
   Future<void> loadOrdersSilently() async {
     if (_hasLoaded) return;
     
@@ -120,10 +118,10 @@ class OrderProvider extends ChangeNotifier {
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
-      // THÊM: refresh orders sau khi mua thành công
-      if (order != null) {
-        await fetchMyOrders(forceRefresh: true);
-      }
+      
+      // SỬA: bỏ if (order != null) vì order không thể null ở đây (nếu lỗi sẽ throw exception)
+      await fetchMyOrders(forceRefresh: true);
+      
       _setLoading(false);
       return order;
     } catch (e) {
@@ -149,10 +147,10 @@ class OrderProvider extends ChangeNotifier {
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
-      // THÊM: refresh orders sau khi tạo thành công
-      if (order != null) {
-        await fetchMyOrders(forceRefresh: true);
-      }
+      
+      // SỬA: bỏ if (order != null)
+      await fetchMyOrders(forceRefresh: true);
+      
       _setLoading(false);
       return order;
     } catch (e) {
@@ -170,7 +168,6 @@ class OrderProvider extends ChangeNotifier {
       final success = await _orderService.cancelOrder(orderId);
       _setLoading(false);
       if (success) {
-        // THÊM: force refresh sau khi hủy
         await fetchMyOrders(forceRefresh: true);
       }
       return success;
@@ -180,18 +177,18 @@ class OrderProvider extends ChangeNotifier {
     }
   }
   
-  // THÊM: Làm mới dữ liệu (force refresh)
+  // Làm mới dữ liệu (force refresh)
   Future<bool> refreshOrders() async {
     return await fetchMyOrders(forceRefresh: true);
   }
   
-  // THÊM: Lấy đơn hàng theo trạng thái
+  // Lấy đơn hàng theo trạng thái
   List<Order> getOrdersByStatus(String status) {
     if (status == 'all') return _orders;
     return _orders.where((order) => order.status == status).toList();
   }
   
-  // THÊM: Thống kê số lượng đơn hàng theo trạng thái
+  // Thống kê số lượng đơn hàng theo trạng thái
   Map<String, int> getOrderStatistics() {
     return {
       'pending': _orders.where((o) => o.status == 'pending').length,
