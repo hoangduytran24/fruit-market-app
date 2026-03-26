@@ -22,15 +22,20 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
   bool _isExpanded = false;
   bool _showForm = false;
   bool _hasPurchased = false;
+  bool _hasReviewed = false;
   bool _isSubmitting = false;
+  bool _isChecking = true;
   final TextEditingController _controller = TextEditingController();
   double _rating = 5.0;
 
   @override
   void initState() {
     super.initState();
-    _checkPurchase();
-    _loadReviews();
+    // Dùng WidgetsBinding để tránh lỗi setState trong build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPurchaseAndReview();
+      _loadReviews();
+    });
   }
 
   @override
@@ -39,21 +44,45 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
     super.dispose();
   }
 
-  Future<void> _checkPurchase() async {
+  Future<void> _checkPurchaseAndReview() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     
     if (!auth.isAuthenticated || auth.currentUser?.userId == null) {
+      if (mounted) {
+        setState(() {
+          _hasPurchased = false;
+          _hasReviewed = false;
+          _isChecking = false;
+        });
+      }
       return;
     }
     
     final reviewProvider = Provider.of<ReviewProvider>(context, listen: false);
+    
+    // Kiểm tra đã mua chưa
     final purchased = await reviewProvider.checkUserPurchasedProduct(
       widget.productId,
       auth.currentUser!.userId,
     );
     
+    // Kiểm tra đã đánh giá chưa
+    bool reviewed = false;
+    if (purchased) {
+      await reviewProvider.fetchProductReviews(widget.productId);
+      reviewed = reviewProvider.reviews.any(
+        (review) => review['userId'] == auth.currentUser?.userId
+      );
+    }
+    
     if (mounted) {
-      setState(() => _hasPurchased = purchased);
+      setState(() {
+        _hasPurchased = purchased;
+        _hasReviewed = reviewed;
+        _isChecking = false;
+      });
+      
+      print('🔍 Check result - Purchased: $purchased, Reviewed: $reviewed');
     }
   }
 
@@ -63,6 +92,19 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
     
     if (mounted) {
       widget.onReviewCountChanged(reviewProvider.reviews.length);
+      
+      // Kiểm tra lại xem user đã đánh giá chưa
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (auth.isAuthenticated && _hasPurchased) {
+        final hasReviewed = reviewProvider.reviews.any(
+          (review) => review['userId'] == auth.currentUser?.userId
+        );
+        if (mounted && hasReviewed != _hasReviewed) {
+          setState(() {
+            _hasReviewed = hasReviewed;
+          });
+        }
+      }
     }
   }
 
@@ -130,7 +172,19 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
     if (!_hasPurchased) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bạn cần mua sản phẩm này để được đánh giá'),
+          content: Text('Bạn chỉ có thể đánh giá sản phẩm đã mua'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    if (_hasReviewed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn đã đánh giá sản phẩm này rồi'),
           backgroundColor: Colors.orange,
           behavior: SnackBarBehavior.floating,
         ),
@@ -178,7 +232,10 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
     setState(() => _isSubmitting = false);
 
     if (success && mounted) {
-      setState(() => _showForm = false);
+      setState(() {
+        _showForm = false;
+        _hasReviewed = true;
+      });
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -219,6 +276,33 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
     }
   }
 
+  // Widget hiển thị rating stars
+  Widget _buildRatingStars(double rating, {double size = 16, bool interactive = false, Function(double)? onChanged}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        final starValue = index + 1.0;
+        return GestureDetector(
+          onTap: interactive && onChanged != null
+              ? () => onChanged(starValue)
+              : null,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            child: Icon(
+              starValue <= rating
+                  ? Icons.star
+                  : starValue - 0.5 <= rating
+                      ? Icons.star_half
+                      : Icons.star_border,
+              size: size,
+              color: Colors.amber,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ReviewProvider>(
@@ -230,7 +314,7 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header với thiết kế mới
+              // Header
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -246,7 +330,6 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                 ),
                 child: Row(
                   children: [
-                    // Icon và tiêu đề
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -261,7 +344,6 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                     ),
                     const SizedBox(width: 12),
                     
-                    // Thông tin đánh giá
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,20 +382,20 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                    '${provider.totalReviews} đánh giá',  // SỬA Ở ĐÂY
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                  )
+                                '${provider.totalReviews} đánh giá',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
                     ),
                     
-                    // Nút đánh giá lớn
-                    if (_hasPurchased)
+                    // Nút đánh giá - chỉ hiển thị khi đã mua và chưa đánh giá
+                    if (!_isChecking && _hasPurchased && !_hasReviewed && !_showForm)
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -322,8 +404,8 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [const Color(0xFF2E7D32), const Color(0xFF1B5E20)],
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)],
                                 begin: Alignment.centerLeft,
                                 end: Alignment.centerRight,
                               ),
@@ -336,18 +418,14 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                                 ),
                               ],
                             ),
-                            child: Row(
+                            child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.edit,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 6),
+                                Icon(Icons.edit, color: Colors.white, size: 18),
+                                SizedBox(width: 6),
                                 Text(
-                                  _showForm ? 'Đang viết...' : 'Đánh giá',
-                                  style: const TextStyle(
+                                  'Đánh giá',
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -358,6 +436,56 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                           ),
                         ),
                       ),
+                    
+                    // Badge đã đánh giá
+                    if (!_isChecking && _hasPurchased && _hasReviewed)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.green[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle, size: 14, color: Colors.green[700]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Đã đánh giá',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.green[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    
+                    // Thông báo chưa mua hàng
+                    if (!_isChecking && !_hasPurchased)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Mua để đánh giá',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.orange[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -365,7 +493,7 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
               const SizedBox(height: 16),
 
               // Nút ẩn/hiện danh sách (nếu có đánh giá)
-              if (reviews.isNotEmpty) ...[
+              if (reviews.isNotEmpty && !_showForm) ...[
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -458,39 +586,20 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                       ),
                       const SizedBox(height: 20),
                       
-                      // Rating stars lớn hơn
                       Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(5, (index) {
-                            return GestureDetector(
-                              onTap: () => setState(() => _rating = index + 1.0),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 4),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: index < _rating 
-                                      ? Colors.amber 
-                                      : Colors.grey[300]!,
-                                  ),
-                                ),
-                                child: Icon(
-                                  index < _rating ? Icons.star : Icons.star_border,
-                                  color: index < _rating ? Colors.amber : Colors.grey,
-                                  size: 32,
-                                ),
-                              ),
-                            );
-                          }),
+                        child: _buildRatingStars(_rating, 
+                          size: 32, 
+                          interactive: true,
+                          onChanged: (newRating) {
+                            setState(() {
+                              _rating = newRating;
+                            });
+                          },
                         ),
                       ),
                       
                       const SizedBox(height: 20),
                       
-                      // Text field
                       TextField(
                         controller: _controller,
                         maxLines: 4,
@@ -513,7 +622,6 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                       
                       const SizedBox(height: 16),
                       
-                      // Buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -522,10 +630,7 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                             ),
-                            child: const Text(
-                              'Hủy',
-                              style: TextStyle(fontSize: 15),
-                            ),
+                            child: const Text('Hủy'),
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton(
@@ -550,6 +655,7 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                                     'GỬI ĐÁNH GIÁ',
                                     style: TextStyle(
                                       fontSize: 15,
+                                      color: Colors.white,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -562,8 +668,8 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                 const SizedBox(height: 16),
               ],
 
-              // Danh sách đánh giá với animation
-              if (_isExpanded && reviews.isNotEmpty)
+              // Danh sách đánh giá
+              if (_isExpanded && reviews.isNotEmpty && !_showForm)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
@@ -618,13 +724,7 @@ class _ProductReviewsWidgetState extends State<ProductReviewsWidget> {
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
-                                        Row(
-                                          children: List.generate(5, (i) => Icon(
-                                            i < review['rating'] ? Icons.star : Icons.star_border,
-                                            size: 16,
-                                            color: Colors.amber[600],
-                                          )),
-                                        ),
+                                        _buildRatingStars(review['rating'].toDouble(), size: 16),
                                         const SizedBox(width: 8),
                                         Text(
                                           _formatDate(review['createdAt']),

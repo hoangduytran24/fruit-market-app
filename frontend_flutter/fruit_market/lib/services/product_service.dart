@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/product.dart';
 import 'api_service.dart';
 
@@ -28,18 +27,20 @@ class ProductService {
       final uri = Uri.parse('${ApiService.baseUrl}Products')
           .replace(queryParameters: query);
       
-      print('Calling API: $uri');
+      print('🌐 GET: $uri');
       
       final response = await ApiService.get('Products?${uri.query}');
       
-      print('Response status: ${response.statusCode}');
+      print('📥 Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('📊 Response data: currentPage=${data['currentPage']}, totalPages=${data['totalPages']}, totalCount=${data['totalCount']}');
+        
         return PaginatedResponse.fromJson(data);
       }
       
-      print('Failed to load products: ${response.statusCode}');
+      print('❌ Failed to load products: ${response.statusCode}');
       return PaginatedResponse(
         items: [],
         totalCount: 0,
@@ -48,7 +49,7 @@ class ProductService {
         totalPages: 1,
       );
     } catch (e) {
-      print('Error in getProductsWithPagination: $e');
+      print('❌ Error in getProductsWithPagination: $e');
       throw Exception('Lỗi: $e');
     }
   }

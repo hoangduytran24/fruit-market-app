@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../services/category_service.dart';
 
-class CategoryProvider with ChangeNotifier {
+class CategoryProvider extends ChangeNotifier {
   List<Category> _categories = [];
   bool _isLoading = false;
   bool _hasLoaded = false;
-  bool _isFetching = false; // THÊM BIẾN NÀY
+  bool _isFetching = false;
   String? _error;
   Category? _selectedCategory;
 
@@ -14,9 +14,11 @@ class CategoryProvider with ChangeNotifier {
   List<Category> get categories => _categories;
   bool get isLoading => _isLoading;
   bool get hasLoaded => _hasLoaded;
+  bool get isFetching => _isFetching;
   String? get error => _error;
   Category? get selectedCategory => _selectedCategory;
   int get totalCount => _categories.length;
+  bool get hasData => _categories.isNotEmpty; // THÊM
 
   // Lấy tất cả danh mục
   Future<bool> fetchCategories({bool forceRefresh = false}) async {
@@ -26,6 +28,7 @@ class CategoryProvider with ChangeNotifier {
       return false;
     }
     
+    // Nếu đã load và không force refresh thì bỏ qua
     if (_hasLoaded && !forceRefresh) {
       print('✅ Đã load categories trước đó, bỏ qua fetch');
       return true;
@@ -108,6 +111,8 @@ class CategoryProvider with ChangeNotifier {
 
   // Lấy danh mục có nhiều sản phẩm nhất
   List<Category> getPopularCategories({int limit = 5}) {
+    if (_categories.isEmpty) return [];
+    
     final sorted = List<Category>.from(_categories)
       ..sort((a, b) => b.productCount.compareTo(a.productCount));
     
@@ -116,8 +121,39 @@ class CategoryProvider with ChangeNotifier {
 
   // Đảm bảo categories đã được load
   Future<void> ensureCategoriesLoaded() async {
-    if (!_hasLoaded && !_isLoading && !_isFetching) {
-      await fetchCategories();
+    // Nếu đã load thì trả về ngay
+    if (_hasLoaded) {
+      print('✅ Categories đã được load trước đó');
+      return;
+    }
+    
+    // Nếu đang load thì chờ
+    if (_isLoading || _isFetching) {
+      print('⏳ Categories đang được load, chờ...');
+      while (_isLoading || _isFetching) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return;
+    }
+    
+    // Nếu chưa load, mới gọi fetch
+    await fetchCategories();
+  }
+
+  // THÊM: Load categories silently (không set loading state)
+  Future<void> loadCategoriesSilently() async {
+    if (_hasLoaded) return;
+    
+    try {
+      final result = await CategoryService.getAllCategories();
+      if (result['success'] == true) {
+        final List<dynamic> items = result['data'] ?? [];
+        _categories = items.map((json) => Category.fromJson(json)).toList();
+        _hasLoaded = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      print('❌ Load categories silently error: $e');
     }
   }
 
@@ -137,4 +173,27 @@ class CategoryProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
   }
+
+  // Làm mới dữ liệu (force refresh)
+  Future<bool> refreshCategories() async {
+    return await fetchCategories(forceRefresh: true);
+  }
+
+  // Lấy danh mục theo index
+  Category? getCategoryAtIndex(int index) {
+    if (index >= 0 && index < _categories.length) {
+      return _categories[index];
+    }
+    return null;
+  }
+
+// Tìm danh mục theo ID (không gọi API)
+Category? findCategoryById(String categoryId) {
+  for (var category in _categories) {
+    if (category.categoryId == categoryId) {
+      return category;
+    }
+  }
+  return null;
+}
 }

@@ -4,7 +4,6 @@ import '../models/user_voucher.dart';
 import 'api_service.dart';
 
 class VoucherService {
-  final ApiService _apiService = ApiService();
 
   /// Lấy danh sách voucher khả dụng (không cần đăng nhập)
   Future<List<VoucherPublicDto>> getAvailableVouchers() async {

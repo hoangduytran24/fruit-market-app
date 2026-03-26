@@ -3,17 +3,18 @@
 class Order {
   final String orderId;
   final String userId;
-  final String customerName;      // THÊM
-  final String? customerPhone;    // THÊM
+  final String customerName;
+  final String? customerPhone;
   final double totalAmount;
   final double discountAmount;
   final double finalAmount;
   final String status;
   final String? paymentMethod;
+  final String? paymentStatus; 
   final String deliveryAddress;
   final DateTime createdAt;
-  final List<OrderItem>? items;   // SỬA: orderItems -> items
-  final String? voucherCode;      // THÊM
+  final List<OrderItem>? items;
+  final String? voucherCode;
 
   Order({
     required this.orderId,
@@ -25,6 +26,7 @@ class Order {
     required this.finalAmount,
     required this.status,
     this.paymentMethod,
+    this.paymentStatus,
     required this.deliveryAddress,
     required this.createdAt,
     this.items,
@@ -43,6 +45,7 @@ class Order {
       finalAmount: (json['finalAmount'] as num?)?.toDouble() ?? 0,
       status: json['status'] ?? 'pending',
       paymentMethod: json['paymentMethod'],
+      paymentStatus: json['paymentStatus'] ?? 'unpaid', 
       deliveryAddress: json['deliveryAddress'] ?? '',
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
@@ -68,6 +71,7 @@ class Order {
       'finalAmount': finalAmount,
       'status': status,
       'paymentMethod': paymentMethod,
+      'paymentStatus': paymentStatus, 
       'deliveryAddress': deliveryAddress,
       'createdAt': createdAt.toIso8601String(),
       'items': items?.map((e) => e.toJson()).toList(),

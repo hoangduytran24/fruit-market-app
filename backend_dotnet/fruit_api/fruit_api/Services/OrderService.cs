@@ -166,6 +166,7 @@ public class OrderService : IOrderService
                 .ThenInclude(oi => oi.Product)
             .Include(o => o.OrderVoucher)
                 .ThenInclude(ov => ov!.Voucher)
+            .Include(o => o.Payment)
             .FirstOrDefaultAsync(o => o.OrderId == id);
 
         if (order == null)
@@ -182,6 +183,7 @@ public class OrderService : IOrderService
             FinalAmount = order.FinalAmount,
             Status = order.Status,
             PaymentMethod = order.PaymentMethod,
+            PaymentStatus = order.Payment?.PaymentStatus ?? "unpaid",
             DeliveryAddress = order.DeliveryAddress,
             CreatedAt = order.CreatedAt,
             VoucherCode = order.OrderVoucher?.Voucher?.VoucherCode,
@@ -221,6 +223,9 @@ public class OrderService : IOrderService
             totalAmount += item.Quantity * item.PriceAtTime;
         }
 
+        // ✅ CỘNG PHÍ SHIP VÀO TỔNG TIỀN
+        totalAmount += createOrderDto.ShippingFee;
+
         // Apply voucher if any
         decimal discountAmount = 0;
         OrderVoucher? orderVoucher = null;
@@ -230,7 +235,7 @@ public class OrderService : IOrderService
             var voucherResult = await _voucherService.ApplyVoucherAsync(new DTOs.Voucher.ApplyVoucherDto
             {
                 VoucherCode = createOrderDto.VoucherCode,
-                OrderTotal = totalAmount
+                OrderTotal = totalAmount // ✅ Áp dụng voucher trên tổng tiền đã bao gồm phí ship
             });
 
             if (voucherResult.IsValid && voucherResult.Voucher != null)
@@ -293,7 +298,7 @@ public class OrderService : IOrderService
         _context.CartItems.RemoveRange(cart.CartItems);
         cart.UpdatedAt = DateTime.UtcNow;
 
-        // Create payment record
+        // Create payment record (amount đã bao gồm phí ship và đã trừ giảm giá)
         var payment = new Payment
         {
             PaymentId = await GeneratePaymentId(),
@@ -334,6 +339,9 @@ public class OrderService : IOrderService
         // Calculate total amount
         decimal totalAmount = product.Price * buyNowDto.Quantity;
 
+        // ✅ CỘNG PHÍ SHIP VÀO TỔNG TIỀN
+        totalAmount += buyNowDto.ShippingFee;
+
         // Apply voucher if any
         decimal discountAmount = 0;
         OrderVoucher? orderVoucher = null;
@@ -343,7 +351,7 @@ public class OrderService : IOrderService
             var voucherResult = await _voucherService.ApplyVoucherAsync(new DTOs.Voucher.ApplyVoucherDto
             {
                 VoucherCode = buyNowDto.VoucherCode,
-                OrderTotal = totalAmount
+                OrderTotal = totalAmount // ✅ Áp dụng voucher trên tổng tiền đã bao gồm phí ship
             });
 
             if (voucherResult.IsValid && voucherResult.Voucher != null)
@@ -395,7 +403,7 @@ public class OrderService : IOrderService
             _context.OrderVouchers.Add(orderVoucher);
         }
 
-        // Create payment record with generated ID
+        // Create payment record with generated ID (amount đã bao gồm phí ship và đã trừ giảm giá)
         var payment = new Payment
         {
             PaymentId = await GeneratePaymentId(),
@@ -419,17 +427,22 @@ public class OrderService : IOrderService
 
         order.Status = updateDto.Status;
 
-        // Update payment status if order is completed or cancelled
-        if (order.Status == "completed" || order.Status == "cancelled")
+        // Cập nhật payment status dựa trên order status
+        var payment = await _context.Payments.FirstOrDefaultAsync(p => p.OrderId == id);
+
+        if (order.Status == "completed")
         {
-            var payment = await _context.Payments.FirstOrDefaultAsync(p => p.OrderId == id);
-            if (payment != null)
+            if (payment != null && payment.PaymentStatus != "paid")
             {
-                payment.PaymentStatus = order.Status == "completed" ? "paid" : "cancelled";
-                if (order.Status == "completed")
-                {
-                    payment.PaidAt = DateTime.UtcNow;
-                }
+                payment.PaymentStatus = "paid";
+                payment.PaidAt = DateTime.UtcNow;
+            }
+        }
+        else if (order.Status == "cancelled")
+        {
+            if (payment != null && payment.PaymentStatus != "cancelled")
+            {
+                payment.PaymentStatus = "cancelled";
             }
         }
 

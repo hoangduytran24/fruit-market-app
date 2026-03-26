@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'home_screen.dart';
+import '../providers/auth_provider.dart';
+import '../providers/cart_provider.dart';
+import '../providers/product_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/voucher_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,6 +18,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  
+  bool _isLoading = true;
+  String? _error;
+  bool _isDataLoaded = false;
 
   @override
   void initState() {
@@ -37,14 +47,94 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
 
     _animationController.forward();
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadInitialData();
+    });
+  }
 
-    // Tự động chuyển sang màn hình chính sau 5 giây
-Future.delayed(const Duration(seconds: 5), () {
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(builder: (context) => const HomeScreen()),
-  );
-});
+  Future<void> _loadInitialData() async {
+    if (_isDataLoaded) return;
+    
+    try {
+      await Future.wait([
+        _loadUserData(),
+        _loadProducts(),
+        _loadCategories(),
+        _loadVouchers(),
+      ]);
+      
+      _isDataLoaded = true;
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        await Future.delayed(const Duration(seconds: 1));
+        
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (!authProvider.hasLoaded) {
+      await authProvider.checkLoginStatus();
+    }
+    
+    if (authProvider.isAuthenticated) {
+      final cartProvider = Provider.of<CartProvider>(context, listen: false);
+      if (!cartProvider.hasLoaded) {
+        await cartProvider.loadCart();
+      }
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    
+    if (!productProvider.hasLoaded) {
+      await productProvider.loadProducts();
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+    
+    if (!categoryProvider.hasLoaded) {
+      await categoryProvider.fetchCategories();
+    }
+  }
+
+
+  Future<void> _loadVouchers() async {
+    final voucherProvider = Provider.of<VoucherProvider>(context, listen: false);
+    
+
+    if (!voucherProvider.hasLoadedAvailable) {
+      await voucherProvider.loadAvailableVouchers();
+    }
+    
+   
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isAuthenticated && !voucherProvider.hasLoadedSaved) {
+      await voucherProvider.loadSavedVouchers();
+    }
   }
 
   @override
@@ -56,146 +146,153 @@ Future.delayed(const Duration(seconds: 5), () {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B2A1F), // Màu xanh đậm đặc trưng
+      backgroundColor: const Color(0xFF0B2A1F),
       body: Stack(
         children: [
-          // Background pattern nhẹ
           Positioned.fill(
             child: CustomPaint(
               painter: _SplashPatternPainter(),
             ),
           ),
           
-          // Nội dung chính
           Center(
             child: AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
-                return Opacity(
-                  opacity: _fadeAnimation.value,
-                  child: Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: child,
-                  ),
-                );
+                if (_isLoading) {
+                  return Opacity(
+                    opacity: _fadeAnimation.value,
+                    child: Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: child,
+                    ),
+                  );
+                }
+                return child!;
               },
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
+              child: _error != null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Colors.red[300],
+                          size: 40,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _isLoading = true;
+                              _error = null;
+                              _isDataLoaded = false;
+                            });
+                            _loadInitialData();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF7CB342),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Logo
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.green.withOpacity(0.3),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(25),
+                            child: Image.asset(
+                              'lib/assets/img/logo1.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF7CB342),
+                                        Color(0xFF4CAF50),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'GF',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Column(
+                          children: [
+                            const Text(
+                              'GreenFruit',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            const Text(
+                              'MARKET',
+                              style: TextStyle(
+                                color: Color(0xFF7CB342),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 40),
+                        const SizedBox(height: 60),
+                        const Text(
+                          'Sản phẩm tươi sạch cho gia đình bạn',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w300,
+                            letterSpacing: 0.5,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(25),
-                      child: Image.asset(
-                        'lib/assets/img/logo1.png',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF7CB342),
-                                  Color(0xFF4CAF50),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'GF',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 40,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Tên app
-                  Column(
-                    children: [
-                      const Text(
-                        'GreenFruit',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const Text(
-                        'MARKET',
-                        style: TextStyle(
-                          color: Color(0xFF7CB342),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 40),
-                  
-                  // Loading indicator
-                  Column(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        child: const CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7CB342)),
-                          strokeWidth: 3,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Đang tải...',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 60),
-                  
-                  // Slogan
-                  const Text(
-                    'Sản phẩm tươi sạch cho gia đình bạn',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
             ),
           ),
           
@@ -229,14 +326,12 @@ class _SplashPatternPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
-    // Vẽ các đường tròn pattern
     for (double i = 0; i < size.width; i += 40) {
       for (double j = 0; j < size.height; j += 40) {
         canvas.drawCircle(Offset(i, j), 5, paint);
       }
     }
 
-    // Vẽ các đường chéo nhẹ
     paint.color = Colors.white.withOpacity(0.02);
     paint.strokeWidth = 1;
     

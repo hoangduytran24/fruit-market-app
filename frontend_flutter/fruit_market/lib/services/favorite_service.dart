@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
-import '../models/favorite.dart';
 
 class FavoriteService {
   // Lấy danh sách yêu thích - GET /api/favorites

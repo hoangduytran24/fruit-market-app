@@ -1,9 +1,10 @@
 ﻿import 'Product.dart';
-
 class OrderItem {
   final String orderItemId;
   final String orderId;
   final String productId;
+  final String productName;  // THÊM
+  final String? imageUrl;    // THÊM
   final int quantity;
   final double priceAtTime;
   final double subtotal;
@@ -15,6 +16,8 @@ class OrderItem {
     required this.orderItemId,
     required this.orderId,
     required this.productId,
+    required this.productName,
+    this.imageUrl,
     required this.quantity,
     required this.priceAtTime,
     required this.subtotal,
@@ -27,8 +30,10 @@ class OrderItem {
       orderItemId: json['orderItemId'] ?? '',
       orderId: json['orderId'] ?? '',
       productId: json['productId'] ?? '',
+      productName: json['productName'] ?? '',
+      imageUrl: json['imageUrl'],
       quantity: json['quantity'] ?? 0,
-      priceAtTime: (json['price'] as num?)?.toDouble() ?? 0, // SỬA: API trả về "price"
+      priceAtTime: (json['price'] as num?)?.toDouble() ?? 0,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
       product: json['product'] != null ? Product.fromJson(json['product']) : null,
     );
@@ -40,6 +45,8 @@ class OrderItem {
       'orderItemId': orderItemId,
       'orderId': orderId,
       'productId': productId,
+      'productName': productName,
+      'imageUrl': imageUrl,
       'quantity': quantity,
       'priceAtTime': priceAtTime,
       'subtotal': subtotal,

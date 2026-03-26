@@ -7,7 +7,7 @@ class UserVoucher {
   final DateTime savedAt;
   final DateTime? usedAt;
   final bool isUsed;
-  final VoucherPublicDto? voucher; // Đổi từ Voucher thành VoucherPublicDto
+  final VoucherPublicDto? voucher;
 
   UserVoucher({
     required this.userVoucherId,

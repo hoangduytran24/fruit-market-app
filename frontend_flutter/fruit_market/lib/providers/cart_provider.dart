@@ -9,12 +9,16 @@ class CartProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Set<String> _selectedItems = {};
+  bool _hasLoaded = false;
+  bool _isLoadingCart = false;
 
   // Getters
   Cart? get cart => _cart;
   bool get isLoading => _isLoading;
   String? get error => _error;
   Set<String> get selectedItems => _selectedItems;
+  bool get hasLoaded => _hasLoaded;
+  bool get isLoadingCart => _isLoadingCart;
   
   int get itemCount {
     if (_cart?.items.isEmpty ?? true) return 0;
@@ -53,7 +57,21 @@ class CartProvider extends ChangeNotifier {
 
   final CartService _cartService = CartService();
 
-  Future<void> loadCart() async {
+  // SỬA: loadCart với tham số forceRefresh
+  Future<void> loadCart({bool forceRefresh = false}) async {
+    // Nếu đã load và không force refresh thì bỏ qua
+    if (_hasLoaded && _cart != null && !forceRefresh) {
+      print('✅ Cart đã được load trước đó, bỏ qua fetch');
+      return;
+    }
+    
+    // Nếu đang load thì bỏ qua
+    if (_isLoadingCart && !forceRefresh) {
+      print('⏳ Cart đang được load, bỏ qua request');
+      return;
+    }
+    
+    _isLoadingCart = true;
     _setLoading(true);
     _clearError();
 
@@ -64,11 +82,56 @@ class CartProvider extends ChangeNotifier {
       } else {
         _selectedItems.clear();
       }
+      _hasLoaded = true;
       _setLoading(false);
     } catch (e) {
       print('❌ Load cart error: $e');
       _setError('Không thể tải giỏ hàng');
+    } finally {
+      _isLoadingCart = false;
+      _setLoading(false);
     }
+  }
+
+  // THÊM: Làm mới giỏ hàng (force refresh)
+  Future<void> refreshCart() async {
+    await loadCart(forceRefresh: true);
+  }
+
+  // THÊM: load cart silently (không set loading state)
+  Future<void> loadCartSilently() async {
+    if (_hasLoaded && _cart != null) return;
+    
+    try {
+      _cart = await _cartService.getCart();
+      if (_cart?.items.isNotEmpty ?? false) {
+        _selectedItems = Set.from(_cart!.items.map((e) => e.cartItemId));
+      } else {
+        _selectedItems.clear();
+      }
+      _hasLoaded = true;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Load cart silently error: $e');
+    }
+  }
+
+  // THÊM: đảm bảo cart đã được load
+  Future<void> ensureCartLoaded() async {
+    if (_hasLoaded && _cart != null) {
+      print('✅ Cart đã được load trước đó');
+      return;
+    }
+    
+    if (_isLoadingCart || _isLoading) {
+      print('⏳ Cart đang được load, chờ...');
+      while (_isLoadingCart || _isLoading) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return;
+    }
+    
+    await loadCart();
   }
 
   Future<bool> addToCart(Product product, {int quantity = 1}) async {
@@ -78,6 +141,7 @@ class CartProvider extends ChangeNotifier {
     try {
       final newCart = await _cartService.addToCart(product, quantity);
       _cart = newCart;
+      _hasLoaded = true;
       
       if (_cart?.items.isNotEmpty ?? false) {
         try {
@@ -110,6 +174,7 @@ class CartProvider extends ChangeNotifier {
     try {
       final updatedCart = await _cartService.updateQuantity(productId, newQuantity);
       _cart = updatedCart;
+      _hasLoaded = true;
       _setLoading(false);
       return true;
     } catch (e) {
@@ -125,10 +190,14 @@ class CartProvider extends ChangeNotifier {
 
     try {
       String? itemIdToRemove;
-      final itemToRemove = _cart?.items.firstWhere(
-        (item) => item.productId == productId,
-        orElse: () => null as CartItem,
-      );
+      CartItem? itemToRemove;
+      try {
+        itemToRemove = _cart?.items.firstWhere(
+          (item) => item.productId == productId,
+        );
+      } catch (e) {
+        itemToRemove = null;
+      }
       
       if (itemToRemove != null) {
         itemIdToRemove = itemToRemove.cartItemId;
@@ -136,6 +205,7 @@ class CartProvider extends ChangeNotifier {
       
       final updatedCart = await _cartService.removeFromCart(productId);
       _cart = updatedCart;
+      _hasLoaded = true;
       
       if (itemIdToRemove != null) {
         _selectedItems.remove(itemIdToRemove);
@@ -161,11 +231,14 @@ class CartProvider extends ChangeNotifier {
       Cart? latestCart = _cart;
       
       for (var itemId in itemsToRemove) {
-        final item = latestCart?.items.firstWhere(
-          (i) => i.cartItemId == itemId,
-          orElse: () => null as CartItem,
-        );
-        
+        CartItem? item;
+        try {
+          item = latestCart?.items.firstWhere(
+            (i) => i.cartItemId == itemId,
+          );
+        } catch (e) {
+          item = null;
+        }
         if (item != null) {
           latestCart = await _cartService.removeFromCart(item.productId);
         }
@@ -173,6 +246,7 @@ class CartProvider extends ChangeNotifier {
       
       _cart = latestCart;
       _selectedItems.clear();
+      _hasLoaded = true;
       _setLoading(false);
       return true;
     } catch (e) {
@@ -212,6 +286,7 @@ class CartProvider extends ChangeNotifier {
       if (success) {
         _cart = null;
         _selectedItems.clear();
+        _hasLoaded = false;
         _setLoading(false);
         notifyListeners();
         return true;
@@ -243,6 +318,7 @@ class CartProvider extends ChangeNotifier {
       if (success) {
         _cart = await _cartService.getCart();
         _selectedItems.clear();
+        _hasLoaded = true;
       }
       
       _setLoading(false);
@@ -277,6 +353,17 @@ class CartProvider extends ChangeNotifier {
 
   void clearError() {
     _error = null;
+    notifyListeners();
+  }
+
+  // Reset state
+  void reset() {
+    _cart = null;
+    _isLoading = false;
+    _error = null;
+    _selectedItems.clear();
+    _hasLoaded = false;
+    _isLoadingCart = false;
     notifyListeners();
   }
 

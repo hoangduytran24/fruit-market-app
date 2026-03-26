@@ -9,32 +9,46 @@ public class Payment
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    [Column("paymentId")]  // Sửa từ payment_id thành paymentId
+    [Column("paymentId")]
     public string PaymentId { get; set; } = null!;
 
     [Required]
-    [Column("orderId")]  // Sửa từ order_id thành orderId
+    [Column("orderId")]
     public string OrderId { get; set; } = null!;
 
     [Required]
-    [Column("amount", TypeName = "decimal(12,2)")]  // Giữ nguyên
+    [Column("amount", TypeName = "decimal(12,2)")]
     public decimal Amount { get; set; }
 
     [MaxLength(50)]
-    [Column("paymentMethod")]  // Sửa từ payment_method thành paymentMethod
+    [Column("paymentMethod")]
     public string? PaymentMethod { get; set; }
 
     [MaxLength(30)]
-    [Column("paymentStatus")]  // Sửa từ payment_status thành paymentStatus
+    [Column("paymentStatus")]
     public string PaymentStatus { get; set; } = "unpaid";
 
     [MaxLength(100)]
-    [Column("transactionCode")]  // Sửa từ transaction_code thành transactionCode
+    [Column("transactionCode")]
     public string? TransactionCode { get; set; }
 
-    [Column("paidAt")]  // Sửa từ paid_at thành paidAt
+    [Column("paidAt")]
     public DateTime? PaidAt { get; set; }
 
+    // MoMo fields
+    [MaxLength(100)]
+    [Column("momoRequestId")]
+    public string? MomoRequestId { get; set; }
+
+    [MaxLength(50)]
+    [Column("momoPartnerCode")]
+    public string? MomoPartnerCode { get; set; }
+
+    [MaxLength(500)]
+    [Column("qrCodeUrl")]
+    public string? QrCodeUrl { get; set; }
+
     // Navigation properties
+    [ForeignKey("OrderId")]
     public Order? Order { get; set; }
 }

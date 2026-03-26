@@ -16,6 +16,8 @@ class _VouchersScreenState extends State<VouchersScreen>
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   bool _isInitialLoad = true;
+  bool _hasLoadedAvailable = false;
+  bool _hasLoadedSaved = false;
 
   @override
   void initState() {
@@ -25,16 +27,32 @@ class _VouchersScreenState extends State<VouchersScreen>
   }
 
   Future<void> _loadData() async {
+    if (_hasLoadedAvailable && _hasLoadedSaved) return;
+    
     final provider = Provider.of<VoucherProvider>(context, listen: false);
+    
     await Future.wait([
-      provider.loadAvailableVouchers(),
-      provider.loadSavedVouchers(),
+      _loadAvailableVouchers(provider),
+      _loadSavedVouchers(provider),
     ]);
+    
     if (mounted) {
       setState(() {
         _isInitialLoad = false;
       });
     }
+  }
+  
+  Future<void> _loadAvailableVouchers(VoucherProvider provider) async {
+    if (_hasLoadedAvailable) return;
+    await provider.loadAvailableVouchers();
+    _hasLoadedAvailable = true;
+  }
+  
+  Future<void> _loadSavedVouchers(VoucherProvider provider) async {
+    if (_hasLoadedSaved) return;
+    await provider.loadSavedVouchers();
+    _hasLoadedSaved = true;
   }
 
   @override
@@ -51,7 +69,6 @@ class _VouchersScreenState extends State<VouchersScreen>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // Đã xóa leading (mũi tên quay lại)
         title: const Text(
           'Ưu đãi của tôi',
           style: TextStyle(
@@ -60,7 +77,7 @@ class _VouchersScreenState extends State<VouchersScreen>
             fontWeight: FontWeight.bold,
           ),
         ),
-        centerTitle: true, // Căn giữa tiêu đề
+        centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.green,
@@ -74,10 +91,18 @@ class _VouchersScreenState extends State<VouchersScreen>
       ),
       body: Consumer2<AuthProvider, VoucherProvider>(
         builder: (context, authProvider, voucherProvider, child) {
+          // Hiển thị loading nếu đang load lần đầu
           if (_isInitialLoad && 
               (voucherProvider.isLoading || voucherProvider.isLoadingSaved)) {
             return const Center(
-              child: CircularProgressIndicator(color: Colors.green),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Colors.green),
+                  SizedBox(height: 16),
+                  Text('Đang tải voucher...'),
+                ],
+              ),
             );
           }
           
@@ -94,7 +119,8 @@ class _VouchersScreenState extends State<VouchersScreen>
   }
 
   Widget _buildAvailableVouchers(VoucherProvider provider) {
-    if (provider.isLoading && provider.availableVouchers.isEmpty) {
+    // Hiển thị loading nếu đang load và chưa có dữ liệu
+    if (provider.isLoading && provider.availableVouchers.isEmpty && !provider.hasLoadedAvailable) {
       return const Center(child: CircularProgressIndicator(color: Colors.green));
     }
 
@@ -108,7 +134,7 @@ class _VouchersScreenState extends State<VouchersScreen>
             Text(provider.error!),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => provider.loadAvailableVouchers(),
+              onPressed: () => provider.refreshAvailableVouchers(),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               child: const Text('Thử lại'),
             ),
@@ -134,7 +160,7 @@ class _VouchersScreenState extends State<VouchersScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: () => provider.loadAvailableVouchers(),
+      onRefresh: () => provider.refreshAvailableVouchers(),
       color: Colors.green,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -167,7 +193,7 @@ class _VouchersScreenState extends State<VouchersScreen>
               onPressed: () {
                 Navigator.pushNamed(context, '/login').then((_) {
                   if (mounted) {
-                    provider.loadSavedVouchers();
+                    provider.refreshSavedVouchers();
                   }
                 });
               },
@@ -179,7 +205,8 @@ class _VouchersScreenState extends State<VouchersScreen>
       );
     }
 
-    if (provider.isLoadingSaved && provider.savedVouchers.isEmpty) {
+    // Hiển thị loading nếu đang load và chưa có dữ liệu
+    if (provider.isLoadingSaved && provider.savedVouchers.isEmpty && !provider.hasLoadedSaved) {
       return const Center(child: CircularProgressIndicator(color: Colors.green));
     }
 
@@ -193,7 +220,7 @@ class _VouchersScreenState extends State<VouchersScreen>
             Text(provider.savedError!),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => provider.loadSavedVouchers(),
+              onPressed: () => provider.refreshSavedVouchers(),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               child: const Text('Thử lại'),
             ),
@@ -202,31 +229,8 @@ class _VouchersScreenState extends State<VouchersScreen>
       );
     }
 
-    if (provider.savedVouchers.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.folder_open_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              'Chưa có voucher nào được lưu',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Hãy lưu voucher để dùng sau nhé!',
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Lọc danh sách chỉ lấy những voucher có dữ liệu
-    final validSavedVouchers = provider.savedVouchers
-        .where((uv) => uv.voucher != null)
-        .toList();
+    // Lọc danh sách chỉ lấy những voucher có dữ liệu và còn hiệu lực
+    final validSavedVouchers = provider.getValidSavedVouchers();
 
     if (validSavedVouchers.isEmpty) {
       return Center(
@@ -250,7 +254,7 @@ class _VouchersScreenState extends State<VouchersScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: () => provider.loadSavedVouchers(),
+      onRefresh: () => provider.refreshSavedVouchers(),
       color: Colors.green,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -307,7 +311,6 @@ class _VouchersScreenState extends State<VouchersScreen>
           duration: Duration(seconds: 2),
         ),
       );
-      // Có thể quay lại màn hình trước đó
       Navigator.pop(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -22,6 +22,7 @@ class _ShopScreenState extends State<ShopScreen> {
   
   // Biến để lưu danh mục đang được chọn
   String? _selectedCategoryId;
+  bool _isDataLoaded = false;
 
   // Danh sách banner
   final List<String> _bannerImages = [
@@ -45,16 +46,30 @@ class _ShopScreenState extends State<ShopScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Load sản phẩm
-      if (mounted) {
-        Provider.of<ProductProvider>(context, listen: false).loadProducts(refresh: true);
-        // Load danh mục
-        Provider.of<CategoryProvider>(context, listen: false).ensureCategoriesLoaded();
-      }
+      _loadInitialData();
     });
-
+    
     // Tự động chuyển banner mỗi 3 giây
     _startBannerAutoScroll();
+  }
+
+  Future<void> _loadInitialData() async {
+    if (_isDataLoaded) return;
+    
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+    
+    // Load sản phẩm chỉ khi chưa có dữ liệu
+    if (!productProvider.hasLoaded) {
+      await productProvider.loadProducts(refresh: true);
+    }
+    
+    // Load danh mục chỉ khi chưa có dữ liệu
+    if (!categoryProvider.hasLoaded) {
+      await categoryProvider.ensureCategoriesLoaded();
+    }
+    
+    _isDataLoaded = true;
   }
 
   void _startBannerAutoScroll() {
@@ -106,10 +121,8 @@ class _ShopScreenState extends State<ShopScreen> {
     final productProvider = Provider.of<ProductProvider>(context, listen: false);
     
     if (categoryId == null) {
-      // Tất cả sản phẩm
       productProvider.refreshProducts();
     } else {
-      // Lọc theo danh mục
       productProvider.filterByCategory(categoryId);
     }
   }
@@ -125,6 +138,27 @@ class _ShopScreenState extends State<ShopScreen> {
     final user = authProvider.currentUser;
     final fullName = user?.fullName ?? 'Người dùng';
     final displayName = _getDisplayName(fullName);
+
+    // Hiển thị loading nếu đang load lần đầu
+    if ((!productProvider.hasLoaded && productProvider.isLoading) || 
+        (!categoryProvider.hasLoaded && categoryProvider.isLoading)) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.green),
+              const SizedBox(height: 16),
+              Text(
+                'Đang tải dữ liệu...',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -384,439 +418,430 @@ class _ShopScreenState extends State<ShopScreen> {
       body: RefreshIndicator(
         onRefresh: _refreshProducts,
         color: Colors.green,
-        child: productProvider.isLoading && productProvider.products.isEmpty
-            ? const Center(child: CircularProgressIndicator(color: Colors.green))
-            : productProvider.error != null
-                ? Center(
+        child: productProvider.error != null
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Có lỗi xảy ra',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        productProvider.error!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () => productProvider.loadProducts(refresh: true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                        ),
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : CustomScrollView(
+                slivers: [
+                  // Phần chào hỏi
+                  SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.error_outline, size: 60, color: Colors.red),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Có lỗi xảy ra',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                          Row(
+                            children: [
+                              Text(
+                                authProvider.isAuthenticated ? 'Chào $displayName!' : 'Chào bạn!',
+                                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('👋', style: TextStyle(fontSize: 20)),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            productProvider.error!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: () => productProvider.loadProducts(refresh: true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                            ),
-                            child: const Text('Thử lại'),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Hôm nay bạn muốn ăn gì?',
+                            style: TextStyle(fontSize: 15, color: Colors.black87),
                           ),
                         ],
                       ),
                     ),
-                  )
-                : CustomScrollView(
-                    slivers: [
-                      // Phần chào hỏi
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    authProvider.isAuthenticated ? 'Chào $displayName!' : 'Chào bạn!',
-                                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text('👋', style: TextStyle(fontSize: 20)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Hôm nay bạn muốn ăn gì?',
-                                style: TextStyle(fontSize: 15, color: Colors.black87),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                  ),
 
-                      // Banner Carousel
-                      SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: 160,
-                          child: PageView.builder(
-                            controller: _bannerPageController,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentBannerIndex = index;
-                              });
-                            },
-                            itemCount: _bannerImages.length,
-                            itemBuilder: (context, index) {
-                              return Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 16),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                  // Banner Carousel
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 160,
+                      child: PageView.builder(
+                        controller: _bannerPageController,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentBannerIndex = index;
+                          });
+                        },
+                        itemCount: _bannerImages.length,
+                        itemBuilder: (context, index) {
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
                                 ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.asset(
-                                    _bannerImages[index],
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.grey[300],
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Icon(Icons.broken_image, size: 40, color: Colors.grey[600]),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Banner ${index + 1}',
-                                                style: TextStyle(color: Colors.grey[600]),
-                                              ),
-                                            ],
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.asset(
+                                _bannerImages[index],
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[300],
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.broken_image, size: 40, color: Colors.grey[600]),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Banner ${index + 1}',
+                                            style: TextStyle(color: Colors.grey[600]),
                                           ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      
-                      // Chỉ báo dấu chấm
-                      SliverToBoxAdapter(
-                        child: Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(
-                              _bannerImages.length,
-                              (index) => AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                margin: const EdgeInsets.symmetric(horizontal: 3),
-                                width: _currentBannerIndex == index ? 20 : 8,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: _currentBannerIndex == index
-                                      ? Colors.green
-                                      : Colors.grey.withOpacity(0.4),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                  // Chỉ báo dấu chấm
+                  SliverToBoxAdapter(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          _bannerImages.length,
+                          (index) => AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            width: _currentBannerIndex == index ? 20 : 8,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: _currentBannerIndex == index
+                                  ? Colors.green
+                                  : Colors.grey.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(3),
                             ),
                           ),
                         ),
                       ),
-                      
-                      // Danh mục
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), // Giảm bottom padding xuống 0
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Icon(
-                                      Icons.auto_awesome,
-                                      size: 16,
-                                      color: Color.fromARGB(255, 10, 144, 15),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Text(
-                                    'Danh mục',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF2E3A59),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              
-                              // Hiển thị danh mục từ API
-                              if (categoryProvider.isLoading && !categoryProvider.hasLoaded)
-                                const SizedBox(
-                                  height: 115,
-                                  child: Center(
-                                    child: CircularProgressIndicator(color: Colors.green),
-                                  ),
-                                )
-                              else if (categoryProvider.categories.isEmpty)
-                                const SizedBox(
-                                  height: 115,
-                                  child: Center(
-                                    child: Text('Không có danh mục'),
-                                  ),
-                                )
-                              else
-                                SizedBox(
-                                  height: 115,
-                                  child: ListView.builder(
-                                    key: const PageStorageKey<String>('category_list'),
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: categoryProvider.categories.length + 1,
-                                    physics: const BouncingScrollPhysics(),
-                                    itemBuilder: (context, index) {
-                                      // Item "Tất cả" ở đầu
-                                      if (index == 0) {
-                                        final isSelected = _selectedCategoryId == null;
-                                        
-                                        return GestureDetector(
-                                          onTap: () => _filterByCategory(null, 'Tất cả'),
-                                          child: Container(
-                                            width: 70,
-                                            margin: const EdgeInsets.only(right: 5),
-                                            child: Column(
-                                              children: [
-                                                Container(
-                                                  width: 70,
-                                                  height: 70,
-                                                  decoration: BoxDecoration(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    boxShadow: isSelected
-                                                        ? [
-                                                            BoxShadow(
-                                                              color: Colors.green.withOpacity(0.5),
-                                                              blurRadius: 12,
-                                                              spreadRadius: 2,
-                                                              offset: const Offset(0, 4),
-                                                            ),
-                                                            BoxShadow(
-                                                              color: Colors.green.withOpacity(0.3),
-                                                              blurRadius: 20,
-                                                              spreadRadius: 4,
-                                                              offset: const Offset(0, 0),
-                                                            ),
-                                                          ]
-                                                        : [],
-                                                    border: Border.all(
-                                                      color: isSelected ? Colors.green : Colors.grey.withOpacity(0.2),
-                                                      width: isSelected ? 2 : 1,
-                                                    ),
-                                                  ),
-                                                  child: ClipRRect(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                    child: Image.asset(
-                                                      'lib/assets/img/logo.png',
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder: (context, error, stackTrace) {
-                                                        return Container(
-                                                          color: Colors.green.shade50,
-                                                          child: const Center(
-                                                            child: Icon(
-                                                              Icons.image_not_supported_outlined,
-                                                              size: 30,
-                                                              color: Colors.grey,
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  'Tất cả',
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                                    color: isSelected ? Colors.green : Colors.grey.shade700,
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      
-                                      // Các danh mục từ API
-                                      final category = categoryProvider.categories[index - 1];
-                                      final isSelected = _selectedCategoryId == category.categoryId;
-                                      
-                                      return GestureDetector(
-                                        onTap: () => _filterByCategory(category.categoryId, category.categoryName),
-                                        child: Container(
-                                          width: 70,
-                                          margin: const EdgeInsets.only(right: 5),
-                                          child: CategoryCardWidget(
-                                            key: ValueKey(category.categoryId),
-                                            category: category,
-                                            showProductCount: false,
-                                            isSelected: isSelected,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      
-                      // Gợi ý cho bạn - ĐÃ KÉO LÊN SÁT DANH MỤC
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), // Giảm top padding còn 4
-                          child: Row(
+                    ),
+                  ),
+                  
+                  // Danh mục
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(6),
+                                padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
                                   color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Icon(
                                   Icons.auto_awesome,
-                                  size: 18,
-                                  color: Colors.green,
+                                  size: 16,
+                                  color: Color.fromARGB(255, 10, 144, 15),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 6),
                               const Text(
-                                'Gợi ý cho bạn',
+                                'Danh mục',
                                 style: TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: Color(0xFF2E3A59),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                      
-                      // Danh sách sản phẩm
-                      if (productProvider.products.isEmpty)
-                        const SliverToBoxAdapter(
-                          child: Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(40),
-                              child: Column(
-                                children: [
-                                  Icon(Icons.shopping_bag_outlined, size: 60, color: Colors.grey),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'Không có sản phẩm',
-                                    style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500),
-                                  ),
-                                ],
+                          const SizedBox(height: 8),
+                          
+                          // Hiển thị danh mục từ API
+                          if (categoryProvider.categories.isEmpty)
+                            const SizedBox(
+                              height: 115,
+                              child: Center(
+                                child: Text('Không có danh mục'),
                               ),
-                            ),
-                          ),
-                        )
-                      else
-                        SliverPadding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          sliver: SliverGrid(
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              childAspectRatio: 0.7,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                            ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final product = productProvider.products[index];
-                                return ProductCard(
-                                  key: ValueKey(product.productId),
-                                  product: product,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ProductDetailScreen(product: product),
+                            )
+                          else
+                            SizedBox(
+                              height: 115,
+                              child: ListView.builder(
+                                key: const PageStorageKey<String>('category_list'),
+                                scrollDirection: Axis.horizontal,
+                                itemCount: categoryProvider.categories.length + 1,
+                                physics: const BouncingScrollPhysics(),
+                                itemBuilder: (context, index) {
+                                  // Item "Tất cả" ở đầu
+                                  if (index == 0) {
+                                    final isSelected = _selectedCategoryId == null;
+                                    
+                                    return GestureDetector(
+                                      onTap: () => _filterByCategory(null, 'Tất cả'),
+                                      child: Container(
+                                        width: 70,
+                                        margin: const EdgeInsets.only(right: 5),
+                                        child: Column(
+                                          children: [
+                                            Container(
+                                              width: 70,
+                                              height: 70,
+                                              decoration: BoxDecoration(
+                                                borderRadius: BorderRadius.circular(12),
+                                                boxShadow: isSelected
+                                                    ? [
+                                                        BoxShadow(
+                                                          color: Colors.green.withOpacity(0.5),
+                                                          blurRadius: 12,
+                                                          spreadRadius: 2,
+                                                          offset: const Offset(0, 4),
+                                                        ),
+                                                        BoxShadow(
+                                                          color: Colors.green.withOpacity(0.3),
+                                                          blurRadius: 20,
+                                                          spreadRadius: 4,
+                                                          offset: const Offset(0, 0),
+                                                        ),
+                                                      ]
+                                                    : [],
+                                                border: Border.all(
+                                                  color: isSelected ? Colors.green : Colors.grey.withOpacity(0.2),
+                                                  width: isSelected ? 2 : 1,
+                                                ),
+                                              ),
+                                              child: ClipRRect(
+                                                borderRadius: BorderRadius.circular(12),
+                                                child: Image.asset(
+                                                  'lib/assets/img/logo.png',
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Container(
+                                                      color: Colors.green.shade50,
+                                                      child: const Center(
+                                                        child: Icon(
+                                                          Icons.image_not_supported_outlined,
+                                                          size: 30,
+                                                          color: Colors.grey,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Tất cả',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                                color: isSelected ? Colors.green : Colors.grey.shade700,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     );
-                                  },
-                                );
-                              },
-                              childCount: productProvider.products.length,
+                                  }
+                                  
+                                  // Các danh mục từ API
+                                  final category = categoryProvider.categories[index - 1];
+                                  final isSelected = _selectedCategoryId == category.categoryId;
+                                  
+                                  return GestureDetector(
+                                    onTap: () => _filterByCategory(category.categoryId, category.categoryName),
+                                    child: Container(
+                                      width: 70,
+                                      margin: const EdgeInsets.only(right: 5),
+                                      child: CategoryCardWidget(
+                                        key: ValueKey(category.categoryId),
+                                        category: category,
+                                        showProductCount: false,
+                                        isSelected: isSelected,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Gợi ý cho bạn
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.auto_awesome,
+                              size: 18,
+                              color: Colors.green,
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Gợi ý cho bạn',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2E3A59),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Danh sách sản phẩm
+                  if (productProvider.products.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(40),
+                          child: Column(
+                            children: [
+                              Icon(Icons.shopping_bag_outlined, size: 60, color: Colors.grey),
+                              SizedBox(height: 16),
+                              Text(
+                                'Không có sản phẩm',
+                                style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
                         ),
-                      
-                      // Phân trang
-                      if (productProvider.totalPages > 1)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
-                                    borderRadius: BorderRadius.circular(16),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.7,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final product = productProvider.products[index];
+                            return ProductCard(
+                              key: ValueKey(product.productId),
+                              product: product,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ProductDetailScreen(product: product),
                                   ),
-                                  child: Text(
-                                    '${productProvider.products.length} / ${productProvider.totalCount} sản phẩm',
-                                    style: TextStyle(
-                                      color: Colors.green.shade700,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
+                                );
+                              },
+                            );
+                          },
+                          childCount: productProvider.products.length,
+                        ),
+                      ),
+                    ),
+                  
+                  // Phân trang
+                  if (productProvider.totalPages > 1)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                '${productProvider.products.length} / ${productProvider.totalCount} sản phẩm',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _buildPageButton(
-                                      icon: Icons.chevron_left,
-                                      onPressed: productProvider.currentPage > 1
-                                          ? () => _goToPage(productProvider.currentPage - 1)
-                                          : null,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ..._buildPageNumbers(productProvider),
-                                    const SizedBox(width: 8),
-                                    _buildPageButton(
-                                      icon: Icons.chevron_right,
-                                      onPressed: productProvider.currentPage < productProvider.totalPages
-                                          ? () => _goToPage(productProvider.currentPage + 1)
-                                          : null,
-                                    ),
-                                  ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildPageButton(
+                                  icon: Icons.chevron_left,
+                                  onPressed: productProvider.currentPage > 1
+                                      ? () => _goToPage(productProvider.currentPage - 1)
+                                      : null,
+                                ),
+                                const SizedBox(width: 8),
+                                ..._buildPageNumbers(productProvider),
+                                const SizedBox(width: 8),
+                                _buildPageButton(
+                                  icon: Icons.chevron_right,
+                                  onPressed: productProvider.currentPage < productProvider.totalPages
+                                      ? () => _goToPage(productProvider.currentPage + 1)
+                                      : null,
                                 ),
                               ],
                             ),
-                          ),
+                          ],
                         ),
-                      
-                      const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                    ],
-                  ),
+                      ),
+                    ),
+                  
+                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                ],
+              ),
       ),
     );
   }

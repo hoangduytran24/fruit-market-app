@@ -7,6 +7,7 @@ public class BuyNowDto
     public string PaymentMethod { get; set; } = string.Empty;
     public string DeliveryAddress { get; set; } = string.Empty;
     public string? VoucherCode { get; set; }
+    public decimal ShippingFee { get; set; } = 25000; // ✅ Thêm phí ship, mặc định 25k
 }
 
 public class OrderItemDto
@@ -30,6 +31,7 @@ public class OrderDto
     public decimal FinalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? PaymentMethod { get; set; }
+    public string? PaymentStatus { get; set; }
     public string DeliveryAddress { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
@@ -50,6 +52,7 @@ public class CreateOrderDto
     public string DeliveryAddress { get; set; } = string.Empty;
     public string PaymentMethod { get; set; } = string.Empty;
     public string? VoucherCode { get; set; }
+    public decimal ShippingFee { get; set; } = 25000; // ✅ Thêm phí ship, mặc định 25k
 }
 
 public class UpdateOrderStatusDto

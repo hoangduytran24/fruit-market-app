@@ -1,50 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-
-class User {
-  final String userId;
-  final String fullName;
-  final String email;
-  final String phone;
-  final String role;
-  final String? token;
-
-  User({
-    required this.userId,
-    required this.fullName,
-    required this.email,
-    required this.phone,
-    required this.role,
-    this.token,
-  });
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      userId: json['userId'] ?? '',
-      fullName: json['fullName'] ?? '',
-      email: json['email'] ?? '',
-      phone: json['phone'] ?? '',
-      role: json['role'] ?? 'customer',
-      token: json['token'],
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'userId': userId,
-      'fullName': fullName,
-      'email': email,
-      'phone': phone,
-      'role': role,
-      'token': token,
-    };
-  }
-}
+import '../models/User.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _currentUser;
   bool _isLoading = false;
   String? _error;
+  bool _hasLoaded = false; // THÊM
+  bool _isChecking = false; // THÊM
 
   // Getters
   User? get currentUser => _currentUser;
@@ -52,6 +15,8 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isAuthenticated => _currentUser != null;
   String? get token => _currentUser?.token;
+  bool get hasLoaded => _hasLoaded; // THÊM
+  bool get isChecking => _isChecking; // THÊM
 
   // Constructor - kiểm tra trạng thái đăng nhập khi khởi tạo
   AuthProvider() {
@@ -60,19 +25,32 @@ class AuthProvider extends ChangeNotifier {
 
   // Kiểm tra trạng thái đăng nhập từ token đã lưu
   Future<void> checkLoginStatus() async {
-    _setLoading(true);
-    
-    final isLoggedIn = await AuthService.isLoggedIn();
-    
-    if (isLoggedIn) {
-      // Nếu có token, thử lấy thông tin user
-      final userData = await AuthService.getCurrentUser();
-      if (userData != null) {
-        _currentUser = User.fromJson(userData);
-      }
+    // Nếu đã load hoặc đang check thì không làm gì
+    if (_hasLoaded || _isChecking) {
+      print('✅ Auth đã được load trước đó hoặc đang check');
+      return;
     }
     
-    _setLoading(false);
+    _isChecking = true;
+    _setLoading(true);
+    
+    try {
+      final isLoggedIn = await AuthService.isLoggedIn();
+      
+      if (isLoggedIn) {
+        final userData = await AuthService.getCurrentUser();
+        if (userData != null) {
+          _currentUser = User.fromJson(userData);
+        }
+      }
+      
+      _hasLoaded = true; // THÊM
+    } catch (e) {
+      print('❌ Error checking login status: $e');
+    } finally {
+      _isChecking = false;
+      _setLoading(false);
+    }
   }
 
   // Đăng nhập
@@ -85,6 +63,7 @@ class AuthProvider extends ChangeNotifier {
       
       if (result['success']) {
         _currentUser = User.fromJson(result['data']);
+        _hasLoaded = true; // THÊM
         _setLoading(false);
         return true;
       } else {
@@ -118,10 +97,10 @@ class AuthProvider extends ChangeNotifier {
       );
       
       if (result['success']) {
-        // Nếu API trả về token sau đăng ký, tự động đăng nhập
         if (result['data'] != null && result['data']['token'] != null) {
           _currentUser = User.fromJson(result['data']);
         }
+        _hasLoaded = true; // THÊM
         _setLoading(false);
         return true;
       } else {
@@ -140,6 +119,35 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     await AuthService.logout();
     _currentUser = null;
+    _hasLoaded = false; // THÊM: reset khi logout
+    notifyListeners();
+  }
+
+  // Đảm bảo auth đã được load
+  Future<void> ensureAuthLoaded() async {
+    if (_hasLoaded) {
+      print('✅ Auth đã được load trước đó');
+      return;
+    }
+    
+    if (_isChecking || _isLoading) {
+      print('⏳ Auth đang được load, chờ...');
+      while (_isChecking || _isLoading) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return;
+    }
+    
+    await checkLoginStatus();
+  }
+
+  // Reset state
+  void reset() {
+    _currentUser = null;
+    _isLoading = false;
+    _error = null;
+    _hasLoaded = false;
+    _isChecking = false;
     notifyListeners();
   }
 

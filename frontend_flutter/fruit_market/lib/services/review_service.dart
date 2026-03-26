@@ -8,7 +8,6 @@ class ReviewService {
     try {
       print('📋 Fetching reviews for product: $productId');
       
-      // Endpoint: GET /api/Reviews/product/{productId}
       final response = await ApiService.get('Reviews/product/$productId');
       
       print('📥 Response status: ${response.statusCode}');
@@ -19,7 +18,6 @@ class ReviewService {
         return data.map((item) => Map<String, dynamic>.from(item)).toList();
       } else {
         print('❌ Failed to load reviews: ${response.statusCode}');
-        print('📥 Response body: ${response.body}');
         return [];
       }
     } catch (e) {
@@ -33,9 +31,12 @@ class ReviewService {
     try {
       print('🔍 Checking purchase: product=$productId, user=$userId');
       
+      // SỬA: endpoint đúng là /Reviews/check-purchase
       final response = await ApiService.get(
-        'orders/check-purchase?productId=$productId&userId=$userId'
+        'Reviews/check-purchase?productId=$productId'
       );
+      
+      print('📥 Response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -62,11 +63,15 @@ class ReviewService {
       print('📝 Creating review for product: $productId');
       print('📝 Rating: $rating, Comment: $comment');
       
+      final intRating = rating.toInt();
+      
       final body = {
         'productId': productId,
-        'rating': rating,
+        'rating': intRating,
         'comment': comment,
       };
+      
+      print('📦 Body: $body');
       
       final response = await ApiService.post('Reviews', body: body);
       
@@ -99,7 +104,6 @@ class ReviewService {
         return true;
       } else {
         print('❌ Failed to delete review: ${response.statusCode}');
-        print('📥 Response body: ${response.body}');
         return false;
       }
     } catch (e) {

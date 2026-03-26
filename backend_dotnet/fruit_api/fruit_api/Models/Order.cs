@@ -27,7 +27,7 @@ public class Order
     public decimal FinalAmount { get; private set; }
 
     [MaxLength(30)]
-    [Column("status")]  // Giữ nguyên
+    [Column("orderStatus")]  // Giữ nguyên
     public string Status { get; set; } = "pending";
 
     [MaxLength(50)]

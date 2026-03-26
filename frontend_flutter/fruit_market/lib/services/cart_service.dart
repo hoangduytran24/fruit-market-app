@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/Cart.dart';
-import '../models/CartItem.dart';
 import '../models/product.dart';
 import 'api_service.dart';
 

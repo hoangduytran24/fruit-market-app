@@ -76,7 +76,7 @@ public class ReviewService : IReviewService
                 .AnyAsync(oi => oi.Order != null &&
                                oi.Order.UserId == userId &&
                                oi.ProductId == createDto.ProductId &&
-                               oi.Order.Status == "completed"); // Chỉ tính đơn hàng đã hoàn thành
+                               (oi.Order.Status == "completed" || oi.Order.Status == "delivered"));
 
             if (!hasPurchased)
             {
@@ -213,12 +213,12 @@ public class ReviewService : IReviewService
                 .AnyAsync(oi => oi.Order != null &&
                                oi.Order.UserId == userId &&
                                oi.ProductId == productId &&
-                               oi.Order.Status == "completed");
+                               (oi.Order.Status == "completed" || oi.Order.Status == "delivered"));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking purchase for user {UserId}, product {ProductId}", userId, productId);
-            throw;
+            return false;
         }
     }
 
@@ -252,7 +252,7 @@ public class ReviewService : IReviewService
     }
 
     // ===============================
-    // Generate Unique Review ID với nhiều phương pháp
+    // Generate Unique Review ID
     // ===============================
     private async Task<string> GenerateUniqueReviewId(string userId, string productId, bool force = false)
     {
@@ -266,7 +266,6 @@ public class ReviewService : IReviewService
             // Phương pháp 1: Dùng Guid (đảm bảo unique gần như tuyệt đối)
             if (attempt < 3 || force)
             {
-                // REV + 8 ký tự từ Guid
                 reviewId = "REV" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
             }
             // Phương pháp 2: Dùng timestamp + random
@@ -296,36 +295,6 @@ public class ReviewService : IReviewService
 
             if (attempt >= maxAttempts)
                 throw new Exception("Không thể tạo ID duy nhất sau nhiều lần thử");
-
-        } while (exists);
-
-        return reviewId;
-    }
-
-    // Phương pháp đơn giản nhất - khuyên dùng
-    private async Task<string> GenerateSimpleReviewId()
-    {
-        string reviewId;
-        bool exists;
-        int attempt = 0;
-
-        do
-        {
-            // Tạo ID: REV + timestamp + random
-            var timestamp = DateTime.Now.ToString("yyMMddHHmmss");
-            var random = _random.Next(1000, 9999);
-            reviewId = "REV" + timestamp + random;
-
-            // Đảm bảo không quá 20 ký tự
-            if (reviewId.Length > 20)
-                reviewId = reviewId.Substring(0, 20);
-
-            // Kiểm tra tồn tại
-            exists = await _context.Reviews.AnyAsync(r => r.ReviewId == reviewId);
-            attempt++;
-
-            if (attempt > 5)
-                throw new Exception("Không thể tạo ID duy nhất");
 
         } while (exists);
 

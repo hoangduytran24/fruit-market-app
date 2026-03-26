@@ -25,6 +25,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Favorite> Favorites { get; set; }
     public DbSet<UserVoucher> UserVouchers { get; set; }
 
+    public DbSet<PendingTransaction> PendingTransactions { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

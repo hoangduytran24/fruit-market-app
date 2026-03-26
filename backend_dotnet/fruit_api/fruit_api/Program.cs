@@ -49,6 +49,10 @@ builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 
+// ========== vietQR SERVICE ==========
+// ======================================
+builder.Services.AddScoped<VietQRService>();
+builder.Services.AddScoped<BankTransactionService>();
 // HttpContext Accessor (cần cho FileService)
 builder.Services.AddHttpContextAccessor();
 

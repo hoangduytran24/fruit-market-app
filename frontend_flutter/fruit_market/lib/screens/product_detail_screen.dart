@@ -6,7 +6,6 @@ import '../providers/auth_provider.dart';
 import '../providers/favorite_provider.dart';
 import '../providers/review_provider.dart';
 import '../widgets/product_reviews_widget.dart';
-// import 'cart_screen.dart';
 import 'login_screen.dart';
 import 'checkout_screen.dart';
 
@@ -19,20 +18,19 @@ class ProductDetailScreen extends StatefulWidget {
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
 }
 
-class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerProviderStateMixin {
+class _ProductDetailScreenState extends State<ProductDetailScreen>
+    with TickerProviderStateMixin {
   int _quantity = 1;
   bool _isLoading = false;
   bool _isDetailExpanded = true;
   int _reviewCount = 0;
-  
-  // Biến kiểm tra đã gọi API chưa
+
+  // Biến kiểm tra đã gọi API
   bool _hasCheckedFavorite = false;
-  bool _hasLoadedReviews = false;
-  
+
   late AnimationController _animationController;
   late Animation<double> _favoriteAnimation;
   late AnimationController _detailAnimationController;
-  late Animation<double> _detailAnimation;
 
   // Hàm format tiền Việt Nam Đồng
   String _formatCurrency(double amount) {
@@ -49,17 +47,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
     if (widget.product.imageUrl == null || widget.product.imageUrl!.isEmpty) {
       return null;
     }
-    
+
     String imagePath = widget.product.imageUrl!;
-    
+
     if (imagePath.startsWith('http')) {
       return imagePath;
     }
-    
+
     if (imagePath.startsWith('/')) {
       return 'https://10.0.2.2:7262$imagePath';
     }
-    
+
     return 'https://10.0.2.2:7262/$imagePath';
   }
 
@@ -82,29 +80,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
         curve: Curves.elasticIn,
       ),
     );
-    
+
     _detailAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
-    );
-    _detailAnimation = CurvedAnimation(
-      parent: _detailAnimationController,
-      curve: Curves.easeInOut,
     );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Gọi API sau khi build xong, chỉ một lần
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_hasCheckedFavorite) {
         _hasCheckedFavorite = true;
-        _checkFavoriteStatus();
-      }
-      if (!_hasLoadedReviews) {
-        _hasLoadedReviews = true;
-        _loadReviews();
       }
     });
   }
@@ -116,40 +104,22 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
     super.dispose();
   }
 
-  // Kiểm tra trạng thái yêu thích
-  void _checkFavoriteStatus() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final favoriteProvider = Provider.of<FavoriteProvider>(context, listen: false);
-    
-    if (authProvider.isAuthenticated) {
-      // Không cần làm gì vì isFavorite là getter từ provider
-    }
-  }
-
-  // Load reviews
-  Future<void> _loadReviews() async {
-    final reviewProvider = Provider.of<ReviewProvider>(context, listen: false);
-    await reviewProvider.fetchProductReviews(widget.product.productId);
-  }
-
   // Xử lý toggle favorite
   Future<void> _toggleFavorite() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final favoriteProvider = Provider.of<FavoriteProvider>(context, listen: false);
-    
+
     if (!authProvider.isAuthenticated) {
       _showLoginRequiredDialog();
       return;
     }
-    
-    // Animation
+
     _animationController.forward().then((_) {
       _animationController.reverse();
     });
-    
-    // Gọi API toggle favorite
+
     final success = await favoriteProvider.toggleFavorite(widget.product.productId);
-    
+
     if (context.mounted && success) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -241,7 +211,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => const LoginScreen()),
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -280,53 +251,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
 
   void _handleAddToCart() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     if (!authProvider.isAuthenticated) {
       _showLoginRequiredDialog();
       return;
     }
-    
+
     if (widget.product.stockQuantity <= 0) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Sản phẩm đã hết hàng',
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-            ],
-          ),
+        const SnackBar(
+          content: Text('Sản phẩm đã hết hàng'),
           backgroundColor: Colors.orange,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-          margin: const EdgeInsets.all(16),
         ),
       );
       return;
     }
 
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
-    
+
     setState(() => _isLoading = true);
-    
+
     try {
       final success = await cartProvider.addToCart(
         widget.product,
         quantity: _quantity,
       );
-      
+
       if (mounted) {
         setState(() => _isLoading = false);
-        
+
         if (success) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
@@ -385,25 +341,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      cartProvider.error ?? 'Không thể thêm vào giỏ hàng',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                ],
+              content: Text(
+                cartProvider.error ?? 'Không thể thêm vào giỏ hàng',
               ),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              margin: const EdgeInsets.all(16),
             ),
           );
         }
@@ -414,40 +357,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    e.toString().replaceAll('Exception: ', ''),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
+            content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.all(16),
           ),
         );
       }
     }
   }
 
-  // SỬA: Hàm mua ngay - chuyển trực tiếp đến CheckoutScreen, không thêm vào giỏ
   void _handleBuyNow() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     if (!authProvider.isAuthenticated) {
       _showLoginRequiredDialog();
       return;
     }
-    
+
     if (widget.product.stockQuantity <= 0) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -461,7 +388,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
       return;
     }
 
-    // Chuyển thẳng đến màn hình thanh toán, không qua giỏ hàng
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -480,11 +406,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
     final fullImageUrl = getFullImageUrl();
     final authProvider = Provider.of<AuthProvider>(context);
     final favoriteProvider = Provider.of<FavoriteProvider>(context);
-    
-    final bool isFav = authProvider.isAuthenticated 
+
+    final bool isFav = authProvider.isAuthenticated
         ? favoriteProvider.isFavorite(widget.product.productId)
         : false;
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -518,10 +444,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                   // Nút yêu thích
                   Consumer<FavoriteProvider>(
                     builder: (context, favProvider, child) {
-                      final isFavNow = authProvider.isAuthenticated 
+                      final isFavNow = authProvider.isAuthenticated
                           ? favProvider.isFavorite(widget.product.productId)
                           : false;
-                      
+
                       return Container(
                         margin: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -624,7 +550,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                                 ),
                               ),
                             ),
-                      
                       Positioned(
                         bottom: 0,
                         left: 0,
@@ -702,7 +627,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
-                                                  reviewProvider.averageRating.toStringAsFixed(1),
+                                                  reviewProvider.averageRating
+                                                      .toStringAsFixed(1),
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w600,
@@ -732,7 +658,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
                                 color: Colors.green[50],
                                 borderRadius: BorderRadius.circular(20),
@@ -841,7 +768,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
 
                         const SizedBox(height: 24),
 
-                        // Thông tin chi tiết với nút mũi tên
+                        // Thông tin chi tiết
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -859,7 +786,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                                 onTap: _toggleDetail,
                                 borderRadius: BorderRadius.circular(20),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
                                     color: Colors.green[50],
                                     borderRadius: BorderRadius.circular(20),
@@ -891,16 +819,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                             ),
                           ],
                         ),
-                        
+
                         const SizedBox(height: 12),
-                        
+
                         // Thông tin chi tiết với animation
                         AnimatedSize(
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
                           child: Container(
                             constraints: BoxConstraints(
-                              minHeight: _isDetailExpanded ? 0 : 0,
                               maxHeight: _isDetailExpanded ? 230 : 0,
                             ),
                             child: _isDetailExpanded
@@ -931,7 +858,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                                         _buildInfoRow(
                                           icon: Icons.calendar_today_outlined,
                                           label: 'Ngày nhập',
-                                          value: '${widget.product.createdAt.day}/${widget.product.createdAt.month}/${widget.product.createdAt.year}',
+                                          value:
+                                              '${widget.product.createdAt.day}/${widget.product.createdAt.month}/${widget.product.createdAt.year}',
                                         ),
                                         const SizedBox(height: 8),
                                         const Divider(height: 1),
@@ -956,7 +884,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                           onReviewCountChanged: _updateReviewCount,
                         ),
 
-                        // BOTTOM PADDING
                         const SizedBox(height: 120),
                       ],
                     ),
@@ -1031,9 +958,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(width: 12),
-                    
+
                     Expanded(
                       child: Container(
                         height: 48,
@@ -1044,7 +971,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: widget.product.stockQuantity > 0 ? _handleAddToCart : null,
+                            onTap: widget.product.stockQuantity > 0
+                                ? _handleAddToCart
+                                : null,
                             borderRadius: BorderRadius.circular(14),
                             child: Center(
                               child: _isLoading
@@ -1071,9 +1000,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(width: 8),
-                    
+
                     Expanded(
                       child: Container(
                         height: 48,
@@ -1098,7 +1027,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> with TickerPr
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: widget.product.stockQuantity > 0 ? _handleBuyNow : null,
+                            onTap: widget.product.stockQuantity > 0
+                                ? _handleBuyNow
+                                : null,
                             borderRadius: BorderRadius.circular(14),
                             child: Center(
                               child: _isLoading

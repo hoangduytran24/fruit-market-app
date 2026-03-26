@@ -1,7 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
-import '../models/category.dart';
 
 class CategoryService {
   // Lấy tất cả danh mục - GET /api/Categories

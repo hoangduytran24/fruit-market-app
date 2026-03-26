@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/product_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/favorite_provider.dart';
+import '../providers/order_provider.dart';
 import 'shop_screen.dart';
 import 'vouchers_screen.dart';
 import 'cart_screen.dart';
@@ -16,7 +21,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // Mặc định chọn Shop (index 0)
+  int _selectedIndex = 0;
+  bool _isInitialized = false;
 
   final List<Widget> _screens = [
     const ShopScreen(),
@@ -28,8 +34,69 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Load dữ liệu sau khi build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadInitialData();
+    });
+  }
+
+  Future<void> _loadInitialData() async {
+    if (_isInitialized) return;
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+    final favoriteProvider = Provider.of<FavoriteProvider>(context, listen: false);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    
+    // Kiểm tra và load dữ liệu nếu chưa có
+    await Future.wait([
+      _loadUserData(authProvider),
+      _loadProducts(productProvider),
+      _loadCategories(categoryProvider),
+      _loadFavorites(favoriteProvider, authProvider),
+      _loadOrders(orderProvider, authProvider),
+    ]);
+    
+    _isInitialized = true;
+  }
+
+  Future<void> _loadUserData(AuthProvider authProvider) async {
+    if (!authProvider.hasLoaded) {
+      await authProvider.ensureAuthLoaded();
+    }
+  }
+
+  Future<void> _loadProducts(ProductProvider productProvider) async {
+    if (!productProvider.hasLoaded) {
+      await productProvider.loadProducts();
+    }
+  }
+
+  Future<void> _loadCategories(CategoryProvider categoryProvider) async {
+    if (!categoryProvider.hasLoaded) {
+      await categoryProvider.fetchCategories();
+    }
+  }
+
+  Future<void> _loadFavorites(FavoriteProvider favoriteProvider, AuthProvider authProvider) async {
+    if (authProvider.isAuthenticated && !favoriteProvider.hasLoaded) {
+      await favoriteProvider.ensureFavoritesLoaded();
+    }
+  }
+
+  Future<void> _loadOrders(OrderProvider orderProvider, AuthProvider authProvider) async {
+    if (authProvider.isAuthenticated && !orderProvider.hasLoaded) {
+      await orderProvider.fetchMyOrders();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cartProvider = Provider.of<CartProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
       body: _screens[_selectedIndex],

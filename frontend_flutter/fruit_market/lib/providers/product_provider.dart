@@ -10,8 +10,9 @@ class ProductProvider extends ChangeNotifier {
   
   bool _isLoading = false;
   bool _isLoadingMore = false;
-  bool _isFetching = false; // THÊM BIẾN NÀY
+  bool _isFetching = false;
   String? _error;
+  bool _hasLoaded = false;
   
   int _currentPage = 1;
   int _totalPages = 1;
@@ -31,6 +32,9 @@ class ProductProvider extends ChangeNotifier {
   int get totalCount => _totalCount;
   int get currentPage => _currentPage;
   int get totalPages => _totalPages;
+  bool get hasLoaded => _hasLoaded;
+  bool get isFetching => _isFetching;
+  bool get hasData => _products.isNotEmpty;
 
   final ProductService _productService = ProductService();
 
@@ -46,6 +50,13 @@ class ProductProvider extends ChangeNotifier {
       _currentPage = 1;
       _products = [];
       _totalPages = 1;
+      _hasLoaded = false;
+    }
+
+    // Nếu đã load và không refresh thì bỏ qua
+    if (_hasLoaded && !refresh && _products.isNotEmpty) {
+      print('✅ Products đã được load trước đó, bỏ qua fetch');
+      return;
     }
 
     if (_isLoading) return;
@@ -65,12 +76,15 @@ class ProductProvider extends ChangeNotifier {
         pageSize: 10,
       );
 
-      print('✅ Đã tải ${response.items.length} sản phẩm từ trang $_currentPage');
-
-      _products = response.items;
+      // SỬA: Xử lý null values từ API response (bỏ currentPage)
+      _products = response.items ?? [];
       _totalCount = response.totalCount;
-      _totalPages = response.totalPages;
+      _totalPages = response.totalPages ?? 1;
+      
+      print('✅ Đã tải ${_products.length} sản phẩm từ trang $_currentPage');
+      print('📊 Tổng số trang: $_totalPages, Tổng số sản phẩm: $_totalCount');
 
+      _hasLoaded = true;
       _isLoading = false;
       _isFetching = false;
       notifyListeners();
@@ -101,12 +115,15 @@ class ProductProvider extends ChangeNotifier {
         pageSize: 10,
       );
 
-      print('✅ Đã tải thêm ${response.items.length} sản phẩm');
+      // SỬA: Xử lý null values
+      final newItems = response.items ?? [];
+      print('✅ Đã tải thêm ${newItems.length} sản phẩm');
 
-      _products = [..._products, ...response.items];
-      _totalCount = response.totalCount;
-      _totalPages = response.totalPages;
+      _products = [..._products, ...newItems];
+      _totalCount = response.totalCount ?? _totalCount;
+      _totalPages = response.totalPages ?? _totalPages;
       _currentPage = nextPage;
+      _hasLoaded = true;
 
       _isLoadingMore = false;
       notifyListeners();
@@ -118,12 +135,57 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
+  // Đảm bảo products đã được load
+  Future<void> ensureProductsLoaded() async {
+    if (_hasLoaded && _products.isNotEmpty) {
+      print('✅ Products đã được load trước đó');
+      return;
+    }
+    
+    if (_isFetching || _isLoading) {
+      print('⏳ Products đang được load, chờ...');
+      while (_isFetching || _isLoading) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return;
+    }
+    
+    await loadProducts();
+  }
+
+  // Load products silently (không set loading state)
+  Future<void> loadProductsSilently() async {
+    if (_hasLoaded) return;
+    
+    try {
+      final response = await _productService.getProductsWithPagination(
+        keyword: _searchKeyword,
+        categoryId: _selectedCategoryId,
+        page: 1,
+        pageSize: 10,
+      );
+      _products = response.items ?? [];
+      _totalCount = response.totalCount ?? 0;
+      _totalPages = response.totalPages ?? 1;
+      _hasLoaded = true;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Load products silently error: $e');
+    }
+  }
+
   // Chuyển đến trang
   Future<void> goToPage(int page) async {
-    if (page < 1 || page > _totalPages || page == _currentPage || _isFetching) return;
+    if (page < 1 || page > _totalPages || page == _currentPage || _isFetching) {
+      print('⚠️ Không thể chuyển trang: page=$page, current=$_currentPage, total=$_totalPages');
+      return;
+    }
     
+    print('🔄 Chuyển đến trang $page');
     _currentPage = page;
-    await loadProducts(refresh: true);
+    _products = [];
+    _hasLoaded = false;
+    await loadProducts(refresh: false);
   }
 
   // Lọc theo danh mục
@@ -134,7 +196,8 @@ class ProductProvider extends ChangeNotifier {
     _searchKeyword = null;
     _currentPage = 1;
     _products = [];
-    await loadProducts(refresh: true);
+    _hasLoaded = false;
+    await loadProducts(refresh: false);
   }
 
   // Tìm kiếm sản phẩm
@@ -148,7 +211,8 @@ class ProductProvider extends ChangeNotifier {
     _selectedCategoryId = null;
     _currentPage = 1;
     _products = [];
-    await loadProducts(refresh: true);
+    _hasLoaded = false;
+    await loadProducts(refresh: false);
   }
 
   // Refresh danh sách
@@ -157,6 +221,7 @@ class ProductProvider extends ChangeNotifier {
     _searchKeyword = null;
     _currentPage = 1;
     _products = [];
+    _hasLoaded = false;
     await loadProducts(refresh: true);
   }
 
@@ -173,7 +238,26 @@ class ProductProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Các phương thức khác giữ nguyên...
+  // Reset state
+  void reset() {
+    _products = [];
+    _featuredProducts = [];
+    _newProducts = [];
+    _bestSellers = [];
+    _isLoading = false;
+    _isLoadingMore = false;
+    _isFetching = false;
+    _error = null;
+    _hasLoaded = false;
+    _currentPage = 1;
+    _totalPages = 1;
+    _totalCount = 0;
+    _searchKeyword = null;
+    _selectedCategoryId = null;
+    notifyListeners();
+  }
+
+  // Load featured products
   Future<void> loadFeaturedProducts() async {
     try {
       _featuredProducts = await _productService.getFeaturedProducts();
@@ -183,6 +267,7 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
+  // Load new products
   Future<void> loadNewProducts() async {
     try {
       _newProducts = await _productService.getNewProducts();
@@ -192,6 +277,7 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
+  // Load best sellers
   Future<void> loadBestSellers() async {
     try {
       _bestSellers = await _productService.getBestSellers();
@@ -201,7 +287,13 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
+  // Load all products
   Future<void> loadAllProducts() async {
+    if (_hasLoaded && _products.isNotEmpty) {
+      print('✅ All products đã được load trước đó');
+      return;
+    }
+    
     _isLoading = true;
     notifyListeners();
 
@@ -215,6 +307,7 @@ class ProductProvider extends ChangeNotifier {
       await loadProducts(refresh: true);
       
       _isLoading = false;
+      _hasLoaded = true;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -223,11 +316,24 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
+  // Get product by id
   Future<Product?> getProductById(String id) async {
     try {
       return await _productService.getProduct(id);
     } catch (e) {
       print('Lỗi lấy chi tiết sản phẩm: $e');
+      return null;
+    }
+  }
+
+  // Tìm sản phẩm trong cache theo ID
+  Product? findProductInCache(String productId) {
+    try {
+      return _products.firstWhere(
+        (product) => product.productId == productId,
+        orElse: () => null as Product,
+      );
+    } catch (e) {
       return null;
     }
   }

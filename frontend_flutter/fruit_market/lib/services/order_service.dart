@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'api_service.dart';
 import '../models/Order.dart';
-import '../models/buy_now_request.dart';
 
 class OrderService {
   // Lấy danh sách đơn hàng của user
@@ -45,6 +44,7 @@ class OrderService {
     required String paymentMethod,
     required String deliveryAddress,
     String? voucherCode,
+    double shippingFee = 25000, // ✅ Thêm tham số
   }) async {
     try {
       final response = await ApiService.post(
@@ -55,6 +55,7 @@ class OrderService {
           'paymentMethod': paymentMethod,
           'deliveryAddress': deliveryAddress,
           'voucherCode': voucherCode,
+          'shippingFee': shippingFee, // ✅ Thêm dòng này
         },
       );
       
@@ -76,6 +77,7 @@ class OrderService {
     required String deliveryAddress,
     required String paymentMethod,
     String? voucherCode,
+    double shippingFee = 25000, // ✅ Thêm tham số
   }) async {
     try {
       final response = await ApiService.post(
@@ -84,6 +86,7 @@ class OrderService {
           'deliveryAddress': deliveryAddress,
           'paymentMethod': paymentMethod,
           'voucherCode': voucherCode,
+          'shippingFee': shippingFee, // ✅ Thêm dòng này
         },
       );
       
