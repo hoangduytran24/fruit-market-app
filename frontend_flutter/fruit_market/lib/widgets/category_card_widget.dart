@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/category.dart';
 import '../utils/image_utils.dart';
 
@@ -18,7 +19,8 @@ class CategoryCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = category.imageUrl?.originalImage;
+    // SỬA: dùng ImageUtils.getOriginalImage để lấy URL đầy đủ
+    final imageUrl = ImageUtils.getOriginalImage(category.imageUrl?.originalImage);
 
     return GestureDetector(
       onTap: onTap,
@@ -39,7 +41,7 @@ class CategoryCardWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Ảnh danh mục - HIỆU ỨNG PHÁT SÁNG KHI SELECTED
+            // Ảnh danh mục
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
@@ -65,37 +67,36 @@ class CategoryCardWidget extends StatelessWidget {
                 child: AspectRatio(
                   aspectRatio: 1,
                   child: imageUrl != null && imageUrl.isNotEmpty
-                      ? Image.network(
-                          imageUrl,
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
                           fit: BoxFit.cover,
                           width: double.infinity,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: Colors.green.shade50,
-                              child: const Center(
-                                child: Icon(
-                                  Icons.image_not_supported_outlined,
-                                  size: 30,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              color: Colors.green.shade50,
-                              child: Center(
+                          placeholder: (context, url) => Container(
+                            color: Colors.green.shade50,
+                            child: const Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
                                 child: CircularProgressIndicator(
                                   color: Colors.green,
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded / 
-                                        loadingProgress.expectedTotalBytes!
-                                      : null,
+                                  strokeWidth: 2,
                                 ),
                               ),
-                            );
-                          },
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: Colors.green.shade50,
+                            child: const Center(
+                              child: Icon(
+                                Icons.image_not_supported_outlined,
+                                size: 30,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                          // Tối ưu: giảm kích thước ảnh xuống
+                          memCacheWidth: 140,  // 70px * 2 (retina)
+                          memCacheHeight: 140,
                         )
                       : Container(
                           color: Colors.green.shade50,

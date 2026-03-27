@@ -41,6 +41,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     return '$formattedđ';
   }
 
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
   // Hàm lấy URL đầy đủ của ảnh
   String? getFullImageUrl() {
     if (widget.product.imageUrl == null || widget.product.imageUrl!.isEmpty) {
@@ -62,7 +66,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   void _updateReviewCount(int count) {
     // Cập nhật số lượng đánh giá (có thể dùng sau này)
-    // Hiện tại không cần dùng nhưng giữ lại để có thể sử dụng
   }
 
   @override
@@ -434,7 +437,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   ),
                 ),
                 actions: [
-                  // Nút yêu thích
                   Consumer<FavoriteProvider>(
                     builder: (context, favProvider, child) {
                       final isFavNow = authProvider.isAuthenticated
@@ -761,7 +763,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
                         const SizedBox(height: 24),
 
-                        // Thông tin chi tiết
+                        // Thông tin chi tiết - SỬA: bỏ AnimatedSize và dùng SingleChildScrollView cho phần này
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -815,58 +817,59 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
                         const SizedBox(height: 12),
 
-                        // Thông tin chi tiết với animation
+                        // Thông tin chi tiết - SỬA: dùng SingleChildScrollView để cuộn khi quá dài
                         AnimatedSize(
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
-                          child: Container(
-                            constraints: BoxConstraints(
-                              maxHeight: _isDetailExpanded ? 230 : 0,
-                            ),
-                            child: _isDetailExpanded
-                                ? Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[50],
-                                      borderRadius: BorderRadius.circular(16),
+                          child: _isDetailExpanded
+                              ? Container(
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 280, // Giới hạn chiều cao tối đa
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[50],
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          _buildInfoRow(
+                                            icon: Icons.category_outlined,
+                                            label: 'Danh mục',
+                                            value: widget.product.categoryName ?? 'Trái cây tươi',
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const Divider(height: 1),
+                                          const SizedBox(height: 8),
+                                          _buildInfoRow(
+                                            icon: Icons.store_outlined,
+                                            label: 'Nhà cung cấp',
+                                            value: widget.product.supplierName ?? 'Trang trại GreenFruit',
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const Divider(height: 1),
+                                          const SizedBox(height: 8),
+                                          _buildInfoRow(
+                                            icon: Icons.calendar_today_outlined,
+                                            label: 'Ngày nhập',
+                                            value: _formatDate(widget.product.createdAt),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const Divider(height: 1),
+                                          const SizedBox(height: 8),
+                                          _buildInfoRow(
+                                            icon: Icons.place_outlined,
+                                            label: 'Nguồn gốc / Xuất xứ',
+                                            value: widget.product.supplierAddress ?? 'Đà Lạt, Việt Nam',
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                    child: Column(
-                                      children: [
-                                        _buildInfoRow(
-                                          icon: Icons.category_outlined,
-                                          label: 'Danh mục',
-                                          value: 'Trái cây tươi',
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Divider(height: 1),
-                                        const SizedBox(height: 8),
-                                        _buildInfoRow(
-                                          icon: Icons.store_outlined,
-                                          label: 'Nhà cung cấp',
-                                          value: 'Trang trại GreenFruit',
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Divider(height: 1),
-                                        const SizedBox(height: 8),
-                                        _buildInfoRow(
-                                          icon: Icons.calendar_today_outlined,
-                                          label: 'Ngày nhập',
-                                          value:
-                                              '${widget.product.createdAt.day}/${widget.product.createdAt.month}/${widget.product.createdAt.year}',
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Divider(height: 1),
-                                        const SizedBox(height: 8),
-                                        _buildInfoRow(
-                                          icon: Icons.place_outlined,
-                                          label: 'Nguồn gốc / Xuất xứ',
-                                          value: 'Đà Lạt, Việt Nam',
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
                         ),
 
                         const SizedBox(height: 24),
@@ -886,7 +889,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             ],
           ),
 
-          // Bottom Bar
+          // Bottom Bar (giữ nguyên)
           Positioned(
             bottom: 0,
             left: 0,
@@ -1097,44 +1100,51 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     required String label,
     required String value,
   }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.green[50],
-            borderRadius: BorderRadius.circular(10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: const Color(0xFF1B5E20),
+            ),
           ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: const Color(0xFF1B5E20),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1A1E2C),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1E2C),
+                  ),
+                  softWrap: true,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

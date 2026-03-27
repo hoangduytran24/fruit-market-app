@@ -10,7 +10,9 @@
   final String? imageUrl;
   final bool isActive;
   final DateTime createdAt;
-  final String? categoryName; // THÊM DÒNG NÀY
+  final String? categoryName;
+  final String? supplierName;      // THÊM supplierName
+  final String? supplierAddress;   // THÊM supplierAddress
 
   Product({
     required this.productId,
@@ -24,7 +26,9 @@
     this.imageUrl,
     required this.isActive,
     required this.createdAt,
-    this.categoryName, 
+    this.categoryName,
+    this.supplierName,              // THÊM VÀO CONSTRUCTOR
+    this.supplierAddress,           // THÊM VÀO CONSTRUCTOR
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -42,7 +46,9 @@
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : DateTime.now(),
-      categoryName: json['categoryName'], // THÊM DÒNG NÀY
+      categoryName: json['categoryName'],
+      supplierName: json['supplierName'],      // THÊM DÒNG NÀY
+      supplierAddress: json['supplierAddress'], // THÊM DÒNG NÀY
     );
   }
 
@@ -60,6 +66,8 @@
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
       'categoryName': categoryName,
+      'supplierName': supplierName,      // THÊM DÒNG NÀY
+      'supplierAddress': supplierAddress, // THÊM DÒNG NÀY
     };
   }
 }

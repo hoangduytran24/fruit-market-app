@@ -93,6 +93,9 @@ public class ProductService : IProductService
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
                     CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
+                    SupplierId = p.SupplierId,
+                    SupplierName = p.Supplier != null ? p.Supplier.SupplierName : string.Empty,
+                    SupplierAddress = p.Supplier != null ? p.Supplier.Address : string.Empty,  // THÊM DÒNG NÀY
                     Unit = p.Unit,
                     Price = p.Price,
                     StockQuantity = p.StockQuantity,

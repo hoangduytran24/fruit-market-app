@@ -12,6 +12,7 @@ public class ProductDto
     public string CategoryName { get; set; } = string.Empty;
     public string SupplierId { get; set; } = string.Empty;
     public string SupplierName { get; set; } = string.Empty;
+    public string SupplierAddress { get; set; } = string.Empty;  // THÊM DÒNG NÀY
     public string Unit { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int StockQuantity { get; set; }
@@ -26,6 +27,9 @@ public class ProductListDto
     public string ProductId { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
+    public string SupplierId { get; set; } = string.Empty;
+    public string SupplierName { get; set; } = string.Empty;
+    public string SupplierAddress { get; set; } = string.Empty;  // THÊM DÒNG NÀY
     public string Unit { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int StockQuantity { get; set; }
