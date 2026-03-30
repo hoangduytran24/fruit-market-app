@@ -28,6 +28,9 @@ public class OrdersController : ControllerBase
         return User.FindFirst(ClaimTypes.Role)?.Value ?? "user";
     }
 
+    /// <summary>
+    /// Lấy danh sách đơn hàng của người dùng hiện tại
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetMyOrders()
     {
@@ -43,9 +46,30 @@ public class OrdersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Lấy tất cả đơn hàng (không lọc theo trạng thái) - chỉ admin
+    /// </summary>
     [HttpGet("admin/all")]
     [Authorize(Roles = "admin")]
-    public async Task<IActionResult> GetAllOrders([FromQuery] string? status = null)
+    public async Task<IActionResult> GetAllOrders()
+    {
+        try
+        {
+            var orders = await _orderService.GetAllOrdersAsync();
+            return Ok(orders);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Lấy đơn hàng theo trạng thái (chỉ admin)
+    /// </summary>
+    [HttpGet("admin/status/{status}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> GetOrdersByStatus(string status)
     {
         try
         {
@@ -58,6 +82,9 @@ public class OrdersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Lấy chi tiết đơn hàng theo ID
+    /// </summary>
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrderById(string id)
     {
@@ -82,6 +109,9 @@ public class OrdersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Tạo đơn hàng từ giỏ hàng
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> CreateOrder(CreateOrderDto createOrderDto)
     {
@@ -102,6 +132,9 @@ public class OrdersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Mua ngay (tạo đơn hàng từ sản phẩm đơn lẻ)
+    /// </summary>
     [HttpPost("buy-now")]
     public async Task<IActionResult> BuyNow([FromBody] BuyNowDto buyNowDto)
     {
@@ -122,6 +155,9 @@ public class OrdersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Cập nhật trạng thái đơn hàng (chỉ admin)
+    /// </summary>
     [HttpPut("{id}/status")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> UpdateOrderStatus(string id, UpdateOrderStatusDto updateDto)
@@ -137,6 +173,9 @@ public class OrdersController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Hủy đơn hàng (người dùng tự hủy)
+    /// </summary>
     [HttpPost("{id}/cancel")]
     public async Task<IActionResult> CancelOrder(string id)
     {

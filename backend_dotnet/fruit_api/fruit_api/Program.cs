@@ -35,6 +35,21 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
+
+    // Cấu hình JWT cho SignalR (nếu có)
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // Register Services
@@ -48,11 +63,13 @@ builder.Services.AddScoped<IVoucherService, VoucherService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 
-// ========== vietQR SERVICE ==========
-// ======================================
+// ========== VIETQR SERVICE ==========
 builder.Services.AddScoped<VietQRService>();
 builder.Services.AddScoped<BankTransactionService>();
+
 // HttpContext Accessor (cần cho FileService)
 builder.Services.AddHttpContextAccessor();
 
@@ -88,16 +105,46 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// CORS
+// ========== CẤU HÌNH CORS ==========
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        builder =>
-        {
-            builder.AllowAnyOrigin()
-                   .AllowAnyMethod()
-                   .AllowAnyHeader();
-        });
+    // Policy cho phép tất cả - Dùng trong development
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+
+    // Policy cho phép các origin cụ thể - Dùng trong production
+    options.AddPolicy("AllowSpecificOrigins", policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:12345",      // Flutter web development
+                "http://localhost:12346",
+                "http://localhost:12347",
+                "http://localhost:12348",
+                "http://localhost:12349",
+                "http://localhost:5000",        // React/Vue development
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "https://localhost:5001",       // HTTPS development
+                "https://localhost:7262",       // API itself
+                "https://yourdomain.com",       // Production domain (thay bằng domain thật)
+                "https://admin.yourdomain.com"  // Admin domain (thay bằng domain thật)
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+
+    // Policy cho mobile app (không cần CORS nhưng vẫn có thể có)
+    options.AddPolicy("MobileApp", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();
@@ -116,14 +163,39 @@ else
 // Custom middleware
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
-// Static files cho images
-app.UseStaticFiles();
+// Static files cho images (quan trọng cho ảnh sản phẩm)
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // Thêm headers CORS cho static files
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        ctx.Context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    }
+});
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+
+// ========== SỬ DỤNG CORS ==========
+// Dùng CORS dựa trên môi trường
+if (app.Environment.IsDevelopment())
+{
+    // Development: Cho phép tất cả để dễ test
+    app.UseCors("AllowAll");
+}
+else
+{
+    // Production: Chỉ cho phép các origin cụ thể
+    app.UseCors("AllowSpecificOrigins");
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.UseStaticFiles();
+// Thêm endpoint để test CORS (bỏ WithOpenApi)
+app.MapGet("/api/test-cors", () => Results.Ok(new { message = "CORS is working!" }));
 
 app.Run();

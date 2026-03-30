@@ -110,11 +110,15 @@ public class OrderService : IOrderService
     {
         return await _context.Orders
             .Where(o => o.UserId == userId)
+            .Include(o => o.User)
             .Include(o => o.OrderItems)
             .OrderByDescending(o => o.CreatedAt)
             .Select(o => new OrderListDto
             {
                 OrderId = o.OrderId,
+                CustomerName = o.User != null ? o.User.FullName : string.Empty,
+                CustomerPhone = o.User != null ? o.User.Phone : string.Empty,
+                DeliveryAddress = o.DeliveryAddress,
                 CreatedAt = o.CreatedAt,
                 FinalAmount = o.FinalAmount,
                 Status = o.Status,
@@ -126,8 +130,9 @@ public class OrderService : IOrderService
     public async Task<IEnumerable<OrderListDto>> GetAllOrdersAsync(string? status = null)
     {
         var query = _context.Orders
-            .Include(o => o.OrderItems)
             .Include(o => o.User)
+            .Include(o => o.OrderItems)
+            .Include(o => o.Payment)
             .OrderByDescending(o => o.CreatedAt)
             .AsQueryable();
 
@@ -139,10 +144,14 @@ public class OrderService : IOrderService
         return await query.Select(o => new OrderListDto
         {
             OrderId = o.OrderId,
+            CustomerName = o.User != null ? o.User.FullName : string.Empty,
+            CustomerPhone = o.User != null ? o.User.Phone : string.Empty,
+            DeliveryAddress = o.DeliveryAddress,
             CreatedAt = o.CreatedAt,
             FinalAmount = o.FinalAmount,
             Status = o.Status,
-            ItemCount = o.OrderItems != null ? o.OrderItems.Count : 0
+            ItemCount = o.OrderItems != null ? o.OrderItems.Count : 0,
+            PaymentStatus = o.Payment != null ? o.Payment.PaymentStatus : "unpaid"  // ← THÊM DÒNG NÀY
         }).ToListAsync();
     }
 

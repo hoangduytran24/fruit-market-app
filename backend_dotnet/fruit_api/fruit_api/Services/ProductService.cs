@@ -92,6 +92,7 @@ public class ProductService : IProductService
                 {
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
+                    CategoryId = p.CategoryId,
                     CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
                     SupplierId = p.SupplierId,
                     SupplierName = p.Supplier != null ? p.Supplier.SupplierName : string.Empty,

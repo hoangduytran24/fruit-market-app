@@ -26,6 +26,7 @@ public class ProductListDto
 {
     public string ProductId { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public string CategoryId { get; set; } = string.Empty;
     public string CategoryName { get; set; } = string.Empty;
     public string SupplierId { get; set; } = string.Empty;
     public string SupplierName { get; set; } = string.Empty;

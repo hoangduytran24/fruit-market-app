@@ -41,6 +41,10 @@ public class OrderDto
 public class OrderListDto
 {
     public string OrderId { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;      // THÊM DÒNG NÀY
+    public string CustomerPhone { get; set; } = string.Empty;     // THÊM DÒNG NÀY
+    public string DeliveryAddress { get; set; } = string.Empty;   // THÊM DÒNG NÀY
+    public string? PaymentStatus { get; set; }
     public DateTime CreatedAt { get; set; }
     public decimal FinalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
