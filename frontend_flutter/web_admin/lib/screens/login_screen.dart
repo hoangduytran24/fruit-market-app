@@ -13,16 +13,29 @@ class GreenFruitAdminLogin extends StatefulWidget {
 
 class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
   final _formKey = GlobalKey<FormState>();
+  
+  // Khởi tạo controller
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    // Giải phóng bộ nhớ khi không sử dụng
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Thực hiện gọi API đăng nhập
       final success = await authProvider.login(
         _usernameController.text.trim(),
         _passwordController.text,
@@ -47,11 +60,14 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
             MaterialPageRoute(builder: (context) => const DashboardScreen()),
           );
         } else {
+          // Khi thất bại, CHỈ hiển thị thông báo lỗi. 
+          // Tuyệt đối không gọi _usernameController.clear() ở đây để giữ lại thông tin cũ.
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(authProvider.error ?? 'Đăng nhập thất bại'),
               backgroundColor: Colors.red,
               behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(20),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           );
@@ -62,7 +78,6 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
 
   @override
   Widget build(BuildContext context) {
-    // Sử dụng extension context.isMobile bạn đã viết
     bool isMobile = Responsive.isMobile(context);
 
     return Scaffold(
@@ -70,9 +85,7 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
       body: Center(
         child: SingleChildScrollView(
           child: Container(
-            // Responsive width: Mobile chiếm 90% màn hình, Desktop cố định 1000px
             width: isMobile ? MediaQuery.of(context).size.width * 0.9 : 1000,
-            // Responsive height: Mobile tự giãn theo content, Desktop cố định 600px
             height: isMobile ? null : 600,
             margin: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -89,7 +102,7 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
             clipBehavior: Clip.antiAlias,
             child: Row(
               children: [
-                // --- PHẦN BÊN TRÁI: Ẩn đi nếu là Mobile ---
+                // --- PHẦN BÊN TRÁI: Dành cho Desktop ---
                 if (!isMobile)
                   Expanded(
                     flex: 1,
@@ -135,7 +148,7 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
                     ),
                   ),
 
-                // --- PHẦN BÊN PHẢI (LOGIN FORM) ---
+                // --- PHẦN BÊN PHẢI: Form đăng nhập ---
                 Expanded(
                   flex: 1,
                   child: Padding(
@@ -148,7 +161,6 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Logo & Brand
                           _buildLogo(),
                           const SizedBox(height: 12),
                           const Text(
@@ -166,7 +178,6 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
                           ),
                           const SizedBox(height: 40),
 
-                          // Input Username
                           _buildInput(
                             controller: _usernameController,
                             hint: 'Username or Admin ID',
@@ -175,7 +186,6 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Input Password
                           _buildInput(
                             controller: _passwordController,
                             hint: 'Admin Password',
@@ -193,10 +203,7 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
                           ),
                           const SizedBox(height: 20),
 
-                          // Nút Đăng Nhập
                           _buildLoginButton(),
-                          
-                          // Khung tài khoản demo đã được xóa tại đây
                         ],
                       ),
                     ),
@@ -210,7 +217,7 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
     );
   }
 
-  // --- Widget helper để code gọn hơn ---
+  // --- Widgets helper ---
 
   Widget _buildLogo() {
     return Container(
@@ -262,29 +269,39 @@ class _GreenFruitAdminLoginState extends State<GreenFruitAdminLogin> {
     bool isPassword = false,
     String? Function(String?)? validator,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9F9F9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
-      ),
-      child: TextFormField(
-        controller: controller,
-        obscureText: isPassword && !_isPasswordVisible,
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: Icon(icon, color: const Color(0xFF7CB342), size: 20),
-          suffixIcon: isPassword
-              ? IconButton(
-                  icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, size: 18),
-                  onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-                )
-              : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword && !_isPasswordVisible,
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: const Color(0xFFF9F9F9),
+        prefixIcon: Icon(icon, color: const Color(0xFF7CB342), size: 20),
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, size: 18),
+                onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+              )
+            : null,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFEEEEEE)),
         ),
-        validator: validator,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF7CB342), width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 15),
       ),
+      validator: validator,
     );
   }
 }

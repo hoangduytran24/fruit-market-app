@@ -9,27 +9,31 @@ public class Supplier
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    [Column("supplierId")]  // Sửa từ supplier_id thành supplierId
+    [Column("supplierId")]
     public string SupplierId { get; set; } = null!;
 
     [Required]
     [MaxLength(150)]
-    [Column("supplierName")]  // Sửa từ supplier_name thành supplierName
+    [Column("supplierName")]
     public string SupplierName { get; set; } = string.Empty;
 
     [MaxLength(15)]
-    [Column("phone")]  // Giữ nguyên
+    [Column("phone")]
     public string? Phone { get; set; }
 
+    [MaxLength(100)]  // THÊM DÒNG NÀY - Giới hạn 100 ký tự cho email
+    [Column("email")]  // THÊM DÒNG NÀY - Tên cột trong database
+    public string? Email { get; set; }  // THÊM DÒNG NÀY
+
     [MaxLength(255)]
-    [Column("address")]  // Giữ nguyên
+    [Column("address")]
     public string? Address { get; set; }
 
     [MaxLength(20)]
-    [Column("status")]  // Giữ nguyên
+    [Column("status")]
     public string Status { get; set; } = "active";
 
-    [Column("createdAt")]  // Sửa từ created_at thành createdAt
+    [Column("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     // Navigation properties

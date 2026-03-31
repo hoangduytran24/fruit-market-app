@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/supplier_service.dart';
 import '../models/supplier.dart';
@@ -14,11 +12,9 @@ class SupplierProvider extends ChangeNotifier {
   List<SupplierModel> get suppliers => _suppliers;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  bool get hasLoaded => _suppliers.isNotEmpty;
 
+  // Lấy danh sách nhà cung cấp
   Future<void> fetchSuppliers() async {
-    if (_isLoading) return;
-    
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -32,40 +28,27 @@ class SupplierProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
-  Future<SupplierModel?> getSupplierById(String supplierId) async {
-    try {
-      return await _supplierService.getSupplierById(supplierId);
-    } catch (e) {
-      _error = e.toString();
-      return null;
-    }
-  }
-  
+
+  // Thêm mới
   Future<bool> createSupplier({
     required String supplierName,
     String? address,
     String? phone,
     String? email,
-    File? imageFile,
-    Uint8List? imageBytes,
   }) async {
     _isLoading = true;
-    _error = null;
     notifyListeners();
     
     try {
-      final newSupplier = await _supplierService.createSupplier(
+      final result = await _supplierService.createSupplier(
         supplierName: supplierName,
         address: address,
         phone: phone,
         email: email,
-        imageFile: imageFile,
-        imageBytes: imageBytes,
       );
       
-      if (newSupplier != null) {
-        await fetchSuppliers();
+      if (result != null) {
+        await fetchSuppliers(); // Load lại danh sách sau khi thêm thành công
         return true;
       }
       return false;
@@ -77,33 +60,29 @@ class SupplierProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
+  // Cập nhật
   Future<bool> updateSupplier({
     required String supplierId,
     required String supplierName,
     String? address,
     String? phone,
     String? email,
-    File? imageFile,
-    Uint8List? imageBytes,
   }) async {
     _isLoading = true;
-    _error = null;
     notifyListeners();
     
     try {
-      final updatedSupplier = await _supplierService.updateSupplier(
+      final result = await _supplierService.updateSupplier(
         supplierId: supplierId,
         supplierName: supplierName,
         address: address,
         phone: phone,
         email: email,
-        imageFile: imageFile,
-        imageBytes: imageBytes,
       );
       
-      if (updatedSupplier != null) {
-        await fetchSuppliers();
+      if (result != null) {
+        await fetchSuppliers(); // Load lại danh sách sau khi sửa thành công
         return true;
       }
       return false;
@@ -115,10 +94,10 @@ class SupplierProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  
+
+  // Xóa
   Future<bool> deleteSupplier(String supplierId) async {
     _isLoading = true;
-    _error = null;
     notifyListeners();
     
     try {

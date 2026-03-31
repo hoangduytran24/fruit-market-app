@@ -1,17 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import '../models/supplier.dart';
 import 'api_service.dart';
 
 class SupplierService {
-  
+  // --- LẤY DANH SÁCH ---
   Future<List<SupplierModel>> getSuppliers() async {
     try {
       final response = await ApiService.get('Suppliers');
-      
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.map((json) => SupplierModel.fromJson(json)).toList();
@@ -22,14 +18,13 @@ class SupplierService {
       return [];
     }
   }
-  
+
+  // --- LẤY CHI TIẾT ---
   Future<SupplierModel?> getSupplierById(String supplierId) async {
     try {
       final response = await ApiService.get('Suppliers/$supplierId');
-      
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return SupplierModel.fromJson(data);
+        return SupplierModel.fromJson(json.decode(response.body));
       }
       return null;
     } catch (e) {
@@ -37,63 +32,31 @@ class SupplierService {
       return null;
     }
   }
-  
+
+  // --- TẠO MỚI (Khớp Swagger application/json) ---
   Future<SupplierModel?> createSupplier({
     required String supplierName,
     String? address,
     String? phone,
     String? email,
-    File? imageFile,
-    Uint8List? imageBytes,
   }) async {
     try {
-      print('=== CREATE SUPPLIER ===');
-      print('SupplierName: $supplierName');
-      print('Address: $address');
-      print('Phone: $phone');
-      print('Email: $email');
-      
-      final request = http.MultipartRequest(
-        'POST',
+      final response = await http.post(
         Uri.parse('${ApiService.baseUrl}Suppliers'),
+        headers: {
+          ...(await ApiService.authHeaders),
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          "supplierName": supplierName,
+          "phone": phone ?? "",
+          "email": email ?? "",
+          "address": address ?? "",
+        }),
       );
-      
-      final headers = await ApiService.authHeaders;
-      request.headers.addAll(headers);
-      
-      request.fields['supplierName'] = supplierName;
-      if (address != null && address.isNotEmpty) {
-        request.fields['address'] = address;
-      }
-      if (phone != null && phone.isNotEmpty) {
-        request.fields['phone'] = phone;
-      }
-      if (email != null && email.isNotEmpty) {
-        request.fields['email'] = email;
-      }
-      
-      // Xử lý ảnh
-      if (kIsWeb && imageBytes != null && imageBytes.isNotEmpty) {
-        request.files.add(http.MultipartFile.fromBytes(
-          'imageFile',
-          imageBytes,
-          filename: 'supplier_image.jpg',
-          contentType: MediaType('image', 'jpeg'),
-        ));
-      } else if (!kIsWeb && imageFile != null && await imageFile.exists()) {
-        request.files.add(await http.MultipartFile.fromPath(
-          'imageFile',
-          imageFile.path,
-          contentType: MediaType('image', 'jpeg'),
-        ));
-      }
-      
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-      
+
+      print('Create Response: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         return SupplierModel.fromJson(json.decode(response.body));
       }
@@ -103,62 +66,33 @@ class SupplierService {
       return null;
     }
   }
-  
+
+  // --- CẬP NHẬT (Khớp Swagger application/json) ---
   Future<SupplierModel?> updateSupplier({
     required String supplierId,
     required String supplierName,
     String? address,
     String? phone,
     String? email,
-    File? imageFile,
-    Uint8List? imageBytes,
   }) async {
     try {
-      print('=== UPDATE SUPPLIER ===');
-      print('SupplierId: $supplierId');
-      print('SupplierName: $supplierName');
-      
-      final request = http.MultipartRequest(
-        'PUT',
+      final response = await http.put(
         Uri.parse('${ApiService.baseUrl}Suppliers/$supplierId'),
+        headers: {
+          ...(await ApiService.authHeaders),
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          "supplierName": supplierName,
+          "phone": phone ?? "",
+          "email": email ?? "",
+          "address": address ?? "",
+          "status": "active" // Backend yêu cầu status khi PUT
+        }),
       );
-      
-      final headers = await ApiService.authHeaders;
-      request.headers.addAll(headers);
-      
-      request.fields['supplierName'] = supplierName;
-      if (address != null && address.isNotEmpty) {
-        request.fields['address'] = address;
-      }
-      if (phone != null && phone.isNotEmpty) {
-        request.fields['phone'] = phone;
-      }
-      if (email != null && email.isNotEmpty) {
-        request.fields['email'] = email;
-      }
-      
-      // Xử lý ảnh
-      if (kIsWeb && imageBytes != null && imageBytes.isNotEmpty) {
-        request.files.add(http.MultipartFile.fromBytes(
-          'imageFile',
-          imageBytes,
-          filename: 'supplier_update.jpg',
-          contentType: MediaType('image', 'jpeg'),
-        ));
-      } else if (!kIsWeb && imageFile != null && await imageFile.exists()) {
-        request.files.add(await http.MultipartFile.fromPath(
-          'imageFile',
-          imageFile.path,
-          contentType: MediaType('image', 'jpeg'),
-        ));
-      }
-      
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-      
+
+      print('Update Response: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200) {
         return SupplierModel.fromJson(json.decode(response.body));
       }
@@ -168,7 +102,8 @@ class SupplierService {
       return null;
     }
   }
-  
+
+  // --- XÓA ---
   Future<bool> deleteSupplier(String supplierId) async {
     try {
       final response = await ApiService.delete('Suppliers/$supplierId');

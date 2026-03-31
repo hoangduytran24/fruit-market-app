@@ -19,17 +19,19 @@ dependencies:
   dio: ^5.4.0
   http_parser: ^4.0.2 # QUAN TRỌNG: Để xử lý MediaType khi upload ảnh
   shared_preferences: ^2.2.2
-  
+  shimmer: ^3.0.0
   # Image Handling
   image_picker: ^1.0.4
   cached_network_image: ^3.3.0
+  pdf: ^3.10.8
+  printing: ^5.11.1
+  path_provider: ^2.1.2
   
   # UI & Utilities
   cupertino_icons: ^1.0.8
   intl: ^0.18.1
   fl_chart: ^0.68.0
   google_fonts: ^6.1.0 # NÊN THÊM: Để giao diện đẹp và đồng nhất
-  path_provider: ^2.1.1 # Hỗ trợ lưu trữ/đọc file cục bộ
 
 dev_dependencies:
   flutter_test:

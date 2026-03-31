@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/voucher.dart';
 import '../providers/voucher_provider.dart';
@@ -26,7 +27,7 @@ class _VouchersScreenState extends State<VouchersScreen> {
 
   String _selectedDiscountType = 'percent';
 
-  static const Color primaryGreen = Color(0xFF27AE60); 
+  static const Color primaryGreen = Color(0xFF27AE60);
   static const Color bgGrey = Color(0xFFF4F7F5);
 
   @override
@@ -37,11 +38,27 @@ class _VouchersScreenState extends State<VouchersScreen> {
     });
   }
 
-  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _codeController.dispose();
+    _valueController.dispose();
+    _minOrderController.dispose();
+    _maxDiscountController.dispose();
+    _quantityController.dispose();
+    _startDateController.dispose();
+    _endDateController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context, TextEditingController controller, {DateTime? firstDate}) async {
+    DateTime now = DateTime.now();
+    DateTime today = DateTime(now.year, now.month, now.day);
+    
     DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
+      initialDate: firstDate ?? today,
+      firstDate: firstDate ?? today, 
       lastDate: DateTime(2101),
       builder: (context, child) {
         return Theme(
@@ -54,7 +71,7 @@ class _VouchersScreenState extends State<VouchersScreen> {
     );
     if (picked != null) {
       setState(() {
-        controller.text = picked.toIso8601String();
+        controller.text = picked.toIso8601String().split('T')[0]; 
       });
     }
   }
@@ -143,7 +160,9 @@ class _VouchersScreenState extends State<VouchersScreen> {
         ? Colors.grey.shade400 
         : (v.discountType == 'percent' ? const Color(0xFFFF9F43) : const Color(0xFF10AC84));
 
-    String discountLabel = v.discountType == 'percent' ? '${v.discountValue.toInt()}%' : '${(v.discountValue / 1000).toInt()}k';
+    String discountLabel = v.discountType == 'percent' 
+        ? '${v.discountValue.toInt()}%' 
+        : '${(v.discountValue / 1000).toInt()}k';
 
     return Container(
       decoration: BoxDecoration(
@@ -283,8 +302,8 @@ class _VouchersScreenState extends State<VouchersScreen> {
       _minOrderController.text = voucher.minOrderValue.toString();
       _maxDiscountController.text = voucher.maxDiscountValue.toString();
       _quantityController.text = voucher.quantity.toString();
-      _startDateController.text = voucher.startDate?.toIso8601String() ?? '';
-      _endDateController.text = voucher.endDate?.toIso8601String() ?? '';
+      _startDateController.text = voucher.startDate?.toIso8601String().split('T')[0] ?? '';
+      _endDateController.text = voucher.endDate?.toIso8601String().split('T')[0] ?? '';
       _selectedDiscountType = voucher.discountType;
     } else {
       _codeController.clear(); _valueController.clear(); _minOrderController.clear();
@@ -311,11 +330,26 @@ class _VouchersScreenState extends State<VouchersScreen> {
                   children: [
                     _buildDialogHeader(isEdit),
                     const SizedBox(height: 20),
-                    _buildSectionTitle("Thông tin cơ bản"),
+                    
+                    _buildSectionTitle("Thông tin mã"),
                     _buildCard([
-                      _buildTextField(controller: _codeController, label: "Mã giảm giá", icon: Icons.confirmation_number_outlined),
+                      _buildTextField(
+                        controller: _codeController, 
+                        label: "Mã giảm giá (Ví dụ: SALE10)", 
+                        icon: Icons.confirmation_number_outlined,
+                        formatters: [
+                          UpperCaseTextFormatter(),
+                          FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
+                          LengthLimitingTextInputFormatter(20),
+                        ],
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return "Bắt buộc nhập mã";
+                          if (v.trim().length < 5) return "Mã tối thiểu 5 ký tự";
+                          return null;
+                        },
+                      ),
                       const SizedBox(height: 16),
-                      const Text("Loại giảm giá", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      const Align(alignment: Alignment.centerLeft, child: Text("Loại giảm giá", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -325,25 +359,75 @@ class _VouchersScreenState extends State<VouchersScreen> {
                         ],
                       ),
                     ]),
+
                     const SizedBox(height: 16),
-                    _buildSectionTitle("Giá trị & Số lượng"),
+                    _buildSectionTitle("Giá trị & Điều kiện"),
                     _buildCard([
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: _buildTextField(controller: _valueController, label: "Giá trị giảm", icon: Icons.money, keyboard: TextInputType.number)),
+                          Expanded(child: _buildTextField(
+                            controller: _valueController, 
+                            label: _selectedDiscountType == 'percent' ? "Giá trị (%)" : "Giá trị (đ)", 
+                            icon: Icons.money, 
+                            keyboard: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return "Bắt buộc";
+                              double val = double.tryParse(v) ?? 0;
+                              if (val <= 0) return "Phải > 0";
+                              if (_selectedDiscountType == 'percent' && val > 100) return "Tối đa 100%";
+                              if (_selectedDiscountType == 'fixed' && val > 10000000) return "Quá giới hạn";
+                              return null;
+                            }
+                          )),
                           const SizedBox(width: 12),
-                          Expanded(child: _buildTextField(controller: _quantityController, label: "Số lượng", icon: Icons.format_list_numbered, keyboard: TextInputType.number)),
+                          Expanded(child: _buildTextField(
+                            controller: _quantityController, 
+                            label: "Số lượng", 
+                            icon: Icons.inventory_2_outlined, 
+                            keyboard: TextInputType.number,
+                            validator: (v) {
+                              int? val = int.tryParse(v ?? '');
+                              if (val == null || val <= 0) return "Bắt buộc (>0)";
+                              if (val > 1000) return "Tối đa 1000";
+                              return null;
+                            }
+                          )),
                         ],
                       ),
                       const SizedBox(height: 16),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: _buildTextField(controller: _minOrderController, label: "Đơn tối thiểu", icon: Icons.shopping_bag_outlined, keyboard: TextInputType.number)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _buildTextField(controller: _maxDiscountController, label: "Giảm tối đa", icon: Icons.vertical_align_top, keyboard: TextInputType.number)),
+                          Expanded(child: _buildTextField(
+                            controller: _minOrderController, 
+                            label: "Đơn tối thiểu", 
+                            icon: Icons.shopping_cart_checkout, 
+                            keyboard: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return "Bắt buộc";
+                              if ((double.tryParse(v) ?? -1) < 0) return "Phải >= 0";
+                              return null;
+                            }
+                          )),
+                          if (_selectedDiscountType == 'percent') ...[
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildTextField(
+                              controller: _maxDiscountController, 
+                              label: "Giảm tối đa", 
+                              icon: Icons.vertical_align_top, 
+                              keyboard: TextInputType.number,
+                              validator: (v) {
+                                if (v == null || v.isEmpty) return "Bắt buộc";
+                                if ((double.tryParse(v) ?? -1) < 0) return "Phải >= 0";
+                                return null;
+                              }
+                            )),
+                          ]
                         ],
                       ),
                     ]),
+
                     const SizedBox(height: 16),
                     _buildSectionTitle("Thời gian áp dụng"),
                     _buildCard([
@@ -353,6 +437,7 @@ class _VouchersScreenState extends State<VouchersScreen> {
                         icon: Icons.calendar_today,
                         readOnly: true,
                         onTap: () => _selectDate(context, _startDateController),
+                        validator: (v) => (v == null || v.isEmpty) ? "Chọn ngày bắt đầu" : null
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -360,9 +445,23 @@ class _VouchersScreenState extends State<VouchersScreen> {
                         label: "Ngày kết thúc",
                         icon: Icons.event_available,
                         readOnly: true,
-                        onTap: () => _selectDate(context, _endDateController),
+                        onTap: () {
+                           if(_startDateController.text.isEmpty) return;
+                           DateTime start = DateTime.parse(_startDateController.text);
+                           _selectDate(context, _endDateController, firstDate: start.add(const Duration(days: 1)));
+                        },
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return "Chọn ngày kết thúc";
+                          DateTime start = DateTime.parse(_startDateController.text);
+                          DateTime end = DateTime.parse(v);
+                          if (end.isBefore(start) || end.isAtSameMomentAs(start)) {
+                            return "Phải sau ngày bắt đầu";
+                          }
+                          return null;
+                        }
                       ),
                     ]),
+
                     const SizedBox(height: 24),
                     _buildDialogActions(isEdit, voucher),
                   ],
@@ -419,12 +518,29 @@ class _VouchersScreenState extends State<VouchersScreen> {
     return Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Align(alignment: Alignment.centerLeft, child: Text(title.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600]))));
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, TextInputType keyboard = TextInputType.text, bool readOnly = false, VoidCallback? onTap}) {
+  Widget _buildTextField({
+    required TextEditingController controller, 
+    required String label, 
+    required IconData icon, 
+    TextInputType keyboard = TextInputType.text, 
+    bool readOnly = false, 
+    VoidCallback? onTap,
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? formatters,
+  }) {
+    // Tự động chặn dấu "-" và các ký tự không phải số nếu là bàn phím số
+    List<TextInputFormatter> effectiveFormatters = formatters ?? [];
+    if (keyboard == TextInputType.number) {
+      effectiveFormatters.add(FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')));
+    }
+
     return TextFormField(
       controller: controller,
       keyboardType: keyboard,
       readOnly: readOnly,
       onTap: onTap,
+      validator: validator,
+      inputFormatters: effectiveFormatters,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
         labelText: label,
@@ -432,6 +548,8 @@ class _VouchersScreenState extends State<VouchersScreen> {
         filled: true,
         fillColor: bgGrey,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        errorStyle: const TextStyle(fontSize: 10, height: 0.8),
       ),
     );
   }
@@ -439,7 +557,7 @@ class _VouchersScreenState extends State<VouchersScreen> {
   Widget _buildDialogActions(bool isEdit, Voucher? originalVoucher) {
     return Row(
       children: [
-        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text("Hủy"))),
+        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), minimumSize: const Size(0, 48)), child: const Text("Hủy"))),
         const SizedBox(width: 12),
         Expanded(
           flex: 2,
@@ -450,11 +568,13 @@ class _VouchersScreenState extends State<VouchersScreen> {
               
               final voucherData = Voucher(
                 voucherId: isEdit ? originalVoucher!.voucherId : '',
-                voucherCode: _codeController.text,
+                voucherCode: _codeController.text.trim(),
                 discountType: _selectedDiscountType,
                 discountValue: double.tryParse(_valueController.text) ?? 0,
                 minOrderValue: double.tryParse(_minOrderController.text) ?? 0,
-                maxDiscountValue: double.tryParse(_maxDiscountController.text) ?? 0,
+                maxDiscountValue: _selectedDiscountType == 'percent' 
+                    ? (double.tryParse(_maxDiscountController.text) ?? 0) 
+                    : 0,
                 quantity: int.tryParse(_quantityController.text) ?? 0,
                 usedQuantity: isEdit ? originalVoucher!.usedQuantity : 0,
                 startDate: DateTime.tryParse(_startDateController.text),
@@ -465,18 +585,26 @@ class _VouchersScreenState extends State<VouchersScreen> {
 
               try {
                 if (isEdit) {
-                  // Đã thêm logic sửa ở đây
                   await provider.updateVoucher(originalVoucher!.voucherId, voucherData);
                 } else {
                   await provider.createVoucher(voucherData);
                 }
-                if (mounted) Navigator.pop(context);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isEdit ? "Cập nhật thành công" : "Tạo voucher thành công"), backgroundColor: primaryGreen));
+                }
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red));
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, foregroundColor: Colors.white),
-            child: Text(isEdit ? "Lưu" : "Xác nhận"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryGreen, 
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              minimumSize: const Size(0, 48),
+              elevation: 0,
+            ),
+            child: Text(isEdit ? "Lưu thay đổi" : "Xác nhận tạo", style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
       ],
@@ -487,17 +615,25 @@ class _VouchersScreenState extends State<VouchersScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Xác nhận xóa'),
-        content: Text('Xóa mã "${v.voucherCode}"?'),
+        content: Text('Bạn có chắc chắn muốn xóa mã "${v.voucherCode}"?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
           TextButton(onPressed: () async {
             await context.read<AdminVoucherProvider>().deleteVoucher(v.voucherId);
             if (mounted) Navigator.pop(context);
-          }, child: const Text('Xóa', style: TextStyle(color: Colors.red))),
+          }, child: const Text('Xóa', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
         ],
       ),
     );
+  }
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }
 

@@ -161,16 +161,16 @@ public class StatisticsService : IStatisticsService
         return statistics;
     }
 
-    public async Task<UserStatisticsDto> GetUserStatisticsAsync()
+    public async Task<OrderStatisticsDto> GetOrderStatisticsAsync()
     {
-        var statistics = new UserStatisticsDto
+        var statistics = new OrderStatisticsDto
         {
-            Total = await _context.Users.CountAsync(),
-            Active = await _context.Users.CountAsync(u => u.Status == "active"),
-            Inactive = await _context.Users.CountAsync(u => u.Status == "inactive"),
-            Banned = await _context.Users.CountAsync(u => u.Status == "banned"),
-            Customers = await _context.Users.CountAsync(u => u.Role == "customer"),
-            Admins = await _context.Users.CountAsync(u => u.Role == "admin")
+            Total = await _context.Orders.CountAsync(),
+            Pending = await _context.Orders.CountAsync(o => o.Status == "pending"),
+            Processing = await _context.Orders.CountAsync(o => o.Status == "processing"),
+            Shipping = await _context.Orders.CountAsync(o => o.Status == "shipping"),
+            Completed = await _context.Orders.CountAsync(o => o.Status == "completed"),
+            Cancelled = await _context.Orders.CountAsync(o => o.Status == "cancelled")
         };
 
         return statistics;

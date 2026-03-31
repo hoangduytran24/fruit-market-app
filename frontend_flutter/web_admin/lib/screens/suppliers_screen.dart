@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; 
 import 'package:provider/provider.dart';
 import '../providers/supplier_provider.dart';
 import '../models/supplier.dart';
@@ -14,7 +15,6 @@ class SuppliersScreen extends StatefulWidget {
 class _SuppliersScreenState extends State<SuppliersScreen> {
   final TextEditingController _searchController = TextEditingController();
   
-  // Các controller cho Form
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -23,7 +23,6 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
 
   bool _isSubmitting = false;
 
-  // Palette màu thương hiệu GreenFruit
   static const Color primaryGreen = Color(0xFF1A5F3A);
   static const Color bgGrey = Color(0xFFF4F7F5);
 
@@ -94,6 +93,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               decoration: InputDecoration(
                 hintText: 'Tìm nhà cung cấp...',
                 prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchController.text.isNotEmpty 
+                  ? IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () {
+                      _searchController.clear();
+                      setState(() {});
+                    }) : null,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                 filled: true,
                 fillColor: Colors.grey.shade100,
@@ -109,6 +113,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
               backgroundColor: primaryGreen,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
         ],
@@ -124,7 +129,7 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         crossAxisCount: isMobile ? 1 : 2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        mainAxisExtent: 130,
+        mainAxisExtent: 140, 
       ),
       itemCount: list.length,
       itemBuilder: (context, index) => _buildSupplierCard(list[index]),
@@ -142,11 +147,10 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // Avatar cố định icon vì NCC không có ảnh
             Container(
-              width: 60, height: 60,
+              width: 56, height: 56,
               decoration: BoxDecoration(color: primaryGreen.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.business, color: primaryGreen, size: 30),
+              child: const Icon(Icons.business_rounded, color: primaryGreen, size: 28),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -154,17 +158,19 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(supplier.supplierName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1),
-                  const SizedBox(height: 4),
-                  _infoRow(Icons.phone, supplier.phone ?? 'N/A'),
-                  _infoRow(Icons.location_on, supplier.address ?? 'N/A'),
+                  Text(supplier.supplierName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  _infoRow(Icons.phone_android_outlined, supplier.phone ?? 'N/A'),
+                  const SizedBox(height: 2),
+                  _infoRow(Icons.location_on_outlined, supplier.address ?? 'N/A'),
                 ],
               ),
             ),
             Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 20), onPressed: () => _openSupplierDialog(supplier)),
-                IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), onPressed: () => _confirmDelete(supplier)),
+                IconButton(icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20), onPressed: () => _confirmDelete(supplier)),
               ],
             )
           ],
@@ -174,10 +180,16 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   }
 
   Widget _infoRow(IconData icon, String text) {
-    return Row(children: [Icon(icon, size: 14, color: Colors.grey), const SizedBox(width: 4), Expanded(child: Text(text, style: const TextStyle(color: Colors.grey, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis))]);
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: Colors.grey[400]), 
+        const SizedBox(width: 6), 
+        Expanded(child: Text(text, style: TextStyle(color: Colors.grey[600], fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis))
+      ]
+    );
   }
 
-  // --- MODERN DIALOG (ĐÃ BỎ CHỌN ẢNH) ---
+  // --- MODERN DIALOG ---
   void _openSupplierDialog(SupplierModel? supplier) {
     final isEdit = supplier != null;
     if (isEdit) {
@@ -194,44 +206,81 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) => Dialog(
-          backgroundColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           child: Container(
             width: 500,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: bgGrey, borderRadius: BorderRadius.circular(28)),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDialogHeader(isEdit),
-                const SizedBox(height: 20),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionTitle("Thông tin chính"),
-                          _buildCard([
-                            _buildTextField(controller: _nameController, label: "Tên nhà cung cấp", icon: Icons.business, validator: (v) => v!.isEmpty ? "Vui lòng nhập tên" : null),
-                            const SizedBox(height: 16),
-                            _buildTextField(controller: _phoneController, label: "Số điện thoại", icon: Icons.phone, keyboard: TextInputType.phone),
-                          ]),
-                          const SizedBox(height: 20),
-                          _buildSectionTitle("Thông tin liên hệ & Địa chỉ"),
-                          _buildCard([
-                            _buildTextField(controller: _emailController, label: "Email", icon: Icons.email_outlined, keyboard: TextInputType.emailAddress),
-                            const SizedBox(height: 16),
-                            _buildTextField(controller: _addressController, label: "Địa chỉ trụ sở", icon: Icons.location_on_outlined, maxLines: 2),
-                          ]),
-                        ],
+            child: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDialogHeader(isEdit),
+                    const SizedBox(height: 16),
+                    _buildSectionTitle("Thông tin cơ bản"),
+                    _buildCard([
+                      _buildTextField(
+                        controller: _nameController, 
+                        label: "Tên nhà cung cấp", 
+                        icon: Icons.business, 
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return "Bắt buộc nhập tên NCC";
+                          if (v.trim().length < 3) return "Tên quá ngắn";
+                          return null;
+                        }
                       ),
-                    ),
-                  ),
+                      const SizedBox(height: 12),
+                      _buildTextField(
+                        controller: _phoneController, 
+                        label: "Số điện thoại", 
+                        icon: Icons.phone_android, 
+                        keyboard: TextInputType.phone,
+                        formatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10),
+                        ],
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return "Bắt buộc nhập SĐT";
+                          if (!RegExp(r'^0[0-9]{9}$').hasMatch(v)) return "SĐT 10 số, bắt đầu bằng 0";
+                          return null;
+                        }
+                      ),
+                    ]),
+                    const SizedBox(height: 16),
+                    _buildSectionTitle("Liên hệ & Địa chỉ"),
+                    _buildCard([
+                      _buildTextField(
+                        controller: _emailController, 
+                        label: "Email nhà cung cấp", 
+                        icon: Icons.email_outlined, 
+                        keyboard: TextInputType.emailAddress,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return "Bắt buộc nhập Email";
+                          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                          if (!emailRegex.hasMatch(v)) return "Email sai định dạng";
+                          return null;
+                        }
+                      ),
+                      const SizedBox(height: 12),
+                      _buildTextField(
+                        controller: _addressController, 
+                        label: "Địa chỉ trụ sở", 
+                        icon: Icons.location_on_outlined, 
+                        maxLines: 2,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return "Bắt buộc nhập địa chỉ";
+                          if (v.trim().length < 5) return "Vui lòng nhập địa chỉ cụ thể hơn";
+                          return null;
+                        }
+                      ),
+                    ]),
+                    const SizedBox(height: 24),
+                    _buildDialogActions(isEdit, supplier?.supplierId, setStateDialog),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                _buildDialogActions(isEdit, supplier?.supplierId, setStateDialog),
-              ],
+              ),
             ),
           ),
         ),
@@ -242,11 +291,11 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   Widget _buildDialogHeader(bool isEdit) {
     return Row(
       children: [
-        CircleAvatar(backgroundColor: primaryGreen.withOpacity(0.1), child: Icon(isEdit ? Icons.edit : Icons.add, color: primaryGreen)),
+        CircleAvatar(backgroundColor: primaryGreen.withOpacity(0.1), child: Icon(isEdit ? Icons.edit_rounded : Icons.add_business_rounded, color: primaryGreen, size: 20)),
         const SizedBox(width: 12),
         Text(isEdit ? "Cập nhật NCC" : "Thêm nhà cung cấp", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const Spacer(),
-        IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+        IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, size: 20)),
       ],
     );
   }
@@ -260,18 +309,39 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Padding(padding: const EdgeInsets.only(left: 4, bottom: 8), child: Text(title.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.5)));
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 8, bottom: 8), 
+        child: Text(title.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.8))
+      ),
+    );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, int maxLines = 1, TextInputType keyboard = TextInputType.text, String? Function(String?)? validator}) {
+  Widget _buildTextField({
+    required TextEditingController controller, 
+    required String label, 
+    required IconData icon, 
+    int maxLines = 1, 
+    TextInputType keyboard = TextInputType.text, 
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? formatters,
+  }) {
     return TextFormField(
-      controller: controller, maxLines: maxLines, keyboardType: keyboard, validator: validator,
+      controller: controller, 
+      maxLines: maxLines, 
+      keyboardType: keyboard, 
+      validator: validator,
+      inputFormatters: formatters,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
-        labelText: label, prefixIcon: Icon(icon, size: 18),
-        filled: true, fillColor: bgGrey.withOpacity(0.5),
+        labelText: label, 
+        prefixIcon: Icon(icon, size: 18),
+        filled: true, 
+        fillColor: bgGrey.withOpacity(0.5),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        errorStyle: const TextStyle(fontSize: 10, height: 0.8),
       ),
     );
   }
@@ -279,40 +349,101 @@ class _SuppliersScreenState extends State<SuppliersScreen> {
   Widget _buildDialogActions(bool isEdit, String? id, StateSetter setStateDialog) {
     return Row(
       children: [
-        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text("Hủy bỏ"))),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () => Navigator.pop(context), 
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), 
+            child: const Text("Hủy bỏ")
+          )
+        ),
         const SizedBox(width: 12),
-        Expanded(flex: 2, child: ElevatedButton(
-          onPressed: _isSubmitting ? null : () => _saveSupplier(isEdit, id, setStateDialog),
-          style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, foregroundColor: Colors.white, minimumSize: const Size(0, 48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
-          child: _isSubmitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(isEdit ? "Lưu thay đổi" : "Tạo nhà cung cấp", style: const TextStyle(fontWeight: FontWeight.bold)),
-        )),
+        Expanded(
+          flex: 2, 
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : () => _saveSupplier(isEdit, id, setStateDialog),
+            style: ElevatedButton.styleFrom(backgroundColor: primaryGreen, foregroundColor: Colors.white, minimumSize: const Size(0, 48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+            child: _isSubmitting 
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+              : Text(isEdit ? "Lưu thay đổi" : "Xác nhận tạo", style: const TextStyle(fontWeight: FontWeight.bold)),
+          )
+        ),
       ],
     );
   }
 
-  // --- LOGIC ---
   Future<void> _saveSupplier(bool isEdit, String? id, StateSetter setStateDialog) async {
     if (!_formKey.currentState!.validate()) return;
     setStateDialog(() => _isSubmitting = true);
     
     final provider = context.read<SupplierProvider>();
+    
     bool success = isEdit 
-      ? await provider.updateSupplier(supplierId: id!, supplierName: _nameController.text, address: _addressController.text, phone: _phoneController.text, email: _emailController.text, imageFile: null, imageBytes: null)
-      : await provider.createSupplier(supplierName: _nameController.text, address: _addressController.text, phone: _phoneController.text, email: _emailController.text, imageFile: null, imageBytes: null);
+      ? await provider.updateSupplier(
+          supplierId: id!, 
+          supplierName: _nameController.text.trim(), 
+          address: _addressController.text.trim(), 
+          phone: _phoneController.text.trim(), 
+          email: _emailController.text.trim(),
+        )
+      : await provider.createSupplier(
+          supplierName: _nameController.text.trim(), 
+          address: _addressController.text.trim(), 
+          phone: _phoneController.text.trim(), 
+          email: _emailController.text.trim(),
+        );
 
-    setStateDialog(() => _isSubmitting = false);
-    if (success) { Navigator.pop(context); _loadData(); }
+    if (mounted) {
+      setStateDialog(() => _isSubmitting = false);
+      if (success) { 
+        Navigator.pop(context); 
+        _loadData(); 
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isEdit ? "Đã cập nhật NCC" : "Đã thêm NCC mới"), backgroundColor: primaryGreen)
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Thao tác thất bại, vui lòng kiểm tra lại!'), backgroundColor: Colors.redAccent)
+        );
+      }
+    }
   }
 
   Future<void> _confirmDelete(SupplierModel supplier) async {
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Xác nhận'), content: Text('Xóa nhà cung cấp "${supplier.supplierName}"?'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa', style: TextStyle(color: Colors.red)))]));
-    if (confirmed == true) { await context.read<SupplierProvider>().deleteSupplier(supplier.supplierId); _loadData(); }
+    final confirmed = await showDialog<bool>(
+      context: context, 
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Xác nhận xóa'), 
+        content: Text('Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.supplierName}"? Hành động này không thể hoàn tác.'), 
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')), 
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)))
+        ]
+      )
+    );
+    if (confirmed == true) { 
+      await context.read<SupplierProvider>().deleteSupplier(supplier.supplierId); 
+      _loadData(); 
+    }
   }
 
   List<SupplierModel> _getFilteredSuppliers(List<SupplierModel> suppliers) {
-    if (_searchController.text.isEmpty) return suppliers;
-    return suppliers.where((s) => s.supplierName.toLowerCase().contains(_searchController.text.toLowerCase())).toList();
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) return suppliers;
+    return suppliers.where((s) => 
+      s.supplierName.toLowerCase().contains(query) || 
+      (s.phone ?? "").contains(query)
+    ).toList();
   }
 
-  Widget _buildEmptyState() => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.business_center_outlined, size: 60, color: Colors.grey.shade300), const Text('Không tìm thấy NCC', style: TextStyle(color: Colors.grey))]));
+  Widget _buildEmptyState() => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center, 
+      children: [
+        Icon(Icons.business_center_outlined, size: 64, color: Colors.grey.shade300), 
+        const SizedBox(height: 12),
+        const Text('Không tìm thấy nhà cung cấp nào', style: TextStyle(color: Colors.grey))
+      ]
+    )
+  );
 }

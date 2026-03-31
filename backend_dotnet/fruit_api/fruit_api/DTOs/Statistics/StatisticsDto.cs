@@ -56,15 +56,15 @@ public class OrderStatusStatisticsDto
 }
 
 // ===============================
-// USER STATISTICS
+// ORDER STATISTICS (TỔNG HỢP ĐƠN HÀNG)
 // ===============================
 
-public class UserStatisticsDto
+public class OrderStatisticsDto
 {
-    public int Total { get; set; }
-    public int Active { get; set; }
-    public int Inactive { get; set; }
-    public int Banned { get; set; }
-    public int Customers { get; set; }
-    public int Admins { get; set; }
+    public int Total { get; set; }      // Tổng số đơn hàng
+    public int Pending { get; set; }    // Đơn chờ duyệt
+    public int Processing { get; set; } // Đơn đang xử lý
+    public int Shipping { get; set; }   // Đơn đang giao
+    public int Completed { get; set; }  // Đơn thành công
+    public int Cancelled { get; set; }  // Đơn đã hủy
 }

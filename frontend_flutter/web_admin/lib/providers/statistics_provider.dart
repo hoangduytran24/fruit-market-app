@@ -6,8 +6,8 @@ class AdminStatisticsProvider extends ChangeNotifier {
   DashboardStats? _dashboard;
   List<TopProduct> _topProducts = [];
   List<RevenueData> _revenueList = [];
-  OrderStatusStats? _orderStatus; // Dữ liệu mới từ Backend
-  UserStats? _userStats;         // Dữ liệu mới từ Backend
+  OrderStatusStats? _orderStatus;
+  OrderStats? _orderStats;  // Thay thế UserStats
   
   bool _isLoading = false;
   String? _errorMessage;
@@ -17,11 +17,11 @@ class AdminStatisticsProvider extends ChangeNotifier {
   List<TopProduct> get topProducts => _topProducts;
   List<RevenueData> get revenueList => _revenueList;
   OrderStatusStats? get orderStatus => _orderStatus;
-  UserStats? get userStats => _userStats;
+  OrderStats? get orderStats => _orderStats;  // Thay thế userStats
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  /// Tải TOÀN BỘ dữ liệu (5 API) cho trang Dashboard của GreenFruit Market
+  /// Tải TOÀN BỘ dữ liệu (5 API) cho trang Dashboard
   Future<void> loadDashboardData() async {
     _isLoading = true;
     _errorMessage = null;
@@ -34,14 +34,14 @@ class AdminStatisticsProvider extends ChangeNotifier {
         StatisticsService.getTopProducts(top: 6, period: 'month'), // results[1]
         StatisticsService.getRevenueStatistics(period: 'day'),   // results[2]
         StatisticsService.getOrderStatusStatistics(),   // results[3]
-        StatisticsService.getUserStatistics(),          // results[4]
+        StatisticsService.getOrderStatistics(),         // results[4] - Thay đổi
       ]);
 
       _dashboard = results[0] as DashboardStats?;
       _topProducts = results[1] as List<TopProduct>;
       _revenueList = results[2] as List<RevenueData>;
       _orderStatus = results[3] as OrderStatusStats?;
-      _userStats = results[4] as UserStats?;
+      _orderStats = results[4] as OrderStats?;  // Thay đổi
 
       if (_dashboard == null) {
         _errorMessage = "Không thể tải dữ liệu thống kê tổng quan.";
@@ -71,8 +71,8 @@ class AdminStatisticsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadUserStatsData() async {
-    _userStats = await StatisticsService.getUserStatistics();
+  Future<void> loadOrderStatsData() async {
+    _orderStats = await StatisticsService.getOrderStatistics();
     notifyListeners();
   }
 
@@ -81,7 +81,7 @@ class AdminStatisticsProvider extends ChangeNotifier {
     _topProducts = [];
     _revenueList = [];
     _orderStatus = null;
-    _userStats = null;
+    _orderStats = null;
     _errorMessage = null;
     notifyListeners();
   }

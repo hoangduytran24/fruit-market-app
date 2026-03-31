@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using fruit_api.Data;
 using fruit_api.DTOs.Supplier;
 using fruit_api.Models;
@@ -23,6 +23,7 @@ public class SupplierService : ISupplierService
                 SupplierId = s.SupplierId,
                 SupplierName = s.SupplierName,
                 Phone = s.Phone,
+                Email = s.Email,
                 Address = s.Address,
                 Status = s.Status,
                 CreatedAt = s.CreatedAt,
@@ -45,6 +46,7 @@ public class SupplierService : ISupplierService
             SupplierId = supplier.SupplierId,
             SupplierName = supplier.SupplierName,
             Phone = supplier.Phone,
+            Email = supplier.Email,
             Address = supplier.Address,
             Status = supplier.Status,
             CreatedAt = supplier.CreatedAt,
@@ -54,52 +56,119 @@ public class SupplierService : ISupplierService
 
     public async Task<SupplierDto> CreateSupplierAsync(CreateSupplierDto createDto)
     {
-        var supplier = new Supplier
+        try
         {
-            SupplierName = createDto.SupplierName,
-            Phone = createDto.Phone,
-            Address = createDto.Address,
-            Status = "active"
-        };
+            // Kiểm tra tên nhà cung cấp đã tồn tại chưa
+            var existing = await _context.Suppliers
+                .FirstOrDefaultAsync(s => s.SupplierName == createDto.SupplierName);
 
-        _context.Suppliers.Add(supplier);
-        await _context.SaveChangesAsync();
+            if (existing != null)
+                throw new Exception($"Nhà cung cấp '{createDto.SupplierName}' đã tồn tại");
 
-        return new SupplierDto
+            // Kiểm tra email đã tồn tại chưa (nếu có)
+            if (!string.IsNullOrEmpty(createDto.Email))
+            {
+                var existingEmail = await _context.Suppliers
+                    .FirstOrDefaultAsync(s => s.Email == createDto.Email);
+
+                if (existingEmail != null)
+                    throw new Exception($"Email '{createDto.Email}' đã được sử dụng");
+            }
+
+            // Tạo ID mới
+            string supplierId = await GenerateSupplierId();
+
+            var supplier = new Supplier
+            {
+                SupplierId = supplierId,
+                SupplierName = createDto.SupplierName.Trim(),
+                Phone = createDto.Phone,
+                Email = createDto.Email,
+                Address = createDto.Address,
+                Status = "active",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Suppliers.Add(supplier);
+            await _context.SaveChangesAsync();
+
+            return new SupplierDto
+            {
+                SupplierId = supplier.SupplierId,
+                SupplierName = supplier.SupplierName,
+                Phone = supplier.Phone,
+                Email = supplier.Email,
+                Address = supplier.Address,
+                Status = supplier.Status,
+                CreatedAt = supplier.CreatedAt,
+                ProductCount = 0
+            };
+        }
+        catch (DbUpdateException dbEx)
         {
-            SupplierId = supplier.SupplierId,
-            SupplierName = supplier.SupplierName,
-            Phone = supplier.Phone,
-            Address = supplier.Address,
-            Status = supplier.Status,
-            CreatedAt = supplier.CreatedAt,
-            ProductCount = 0
-        };
+            var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+            throw new Exception($"Lỗi database: {innerMessage}");
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
     }
 
     public async Task<SupplierDto> UpdateSupplierAsync(string id, UpdateSupplierDto updateDto)
     {
-        var supplier = await _context.Suppliers.FindAsync(id);
-        if (supplier == null)
-            throw new Exception("Supplier not found");
-
-        supplier.SupplierName = updateDto.SupplierName;
-        supplier.Phone = updateDto.Phone;
-        supplier.Address = updateDto.Address;
-        supplier.Status = updateDto.Status;
-
-        await _context.SaveChangesAsync();
-
-        return new SupplierDto
+        try
         {
-            SupplierId = supplier.SupplierId,
-            SupplierName = supplier.SupplierName,
-            Phone = supplier.Phone,
-            Address = supplier.Address,
-            Status = supplier.Status,
-            CreatedAt = supplier.CreatedAt,
-            ProductCount = await _context.Products.CountAsync(p => p.SupplierId == id && p.IsActive)
-        };
+            var supplier = await _context.Suppliers.FindAsync(id);
+            if (supplier == null)
+                throw new Exception("Không tìm thấy nhà cung cấp");
+
+            // Kiểm tra tên đã tồn tại (trừ chính nó)
+            var existing = await _context.Suppliers
+                .FirstOrDefaultAsync(s => s.SupplierName == updateDto.SupplierName && s.SupplierId != id);
+
+            if (existing != null)
+                throw new Exception($"Nhà cung cấp '{updateDto.SupplierName}' đã tồn tại");
+
+            // Kiểm tra email đã tồn tại (trừ chính nó)
+            if (!string.IsNullOrEmpty(updateDto.Email))
+            {
+                var existingEmail = await _context.Suppliers
+                    .FirstOrDefaultAsync(s => s.Email == updateDto.Email && s.SupplierId != id);
+
+                if (existingEmail != null)
+                    throw new Exception($"Email '{updateDto.Email}' đã được sử dụng");
+            }
+
+            supplier.SupplierName = updateDto.SupplierName.Trim();
+            supplier.Phone = updateDto.Phone;
+            supplier.Email = updateDto.Email;
+            supplier.Address = updateDto.Address;
+            supplier.Status = updateDto.Status;
+
+            await _context.SaveChangesAsync();
+
+            return new SupplierDto
+            {
+                SupplierId = supplier.SupplierId,
+                SupplierName = supplier.SupplierName,
+                Phone = supplier.Phone,
+                Email = supplier.Email,
+                Address = supplier.Address,
+                Status = supplier.Status,
+                CreatedAt = supplier.CreatedAt,
+                ProductCount = await _context.Products.CountAsync(p => p.SupplierId == id && p.IsActive)
+            };
+        }
+        catch (DbUpdateException dbEx)
+        {
+            var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+            throw new Exception($"Lỗi database: {innerMessage}");
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
     }
 
     public async Task<bool> DeleteSupplierAsync(string id)
@@ -109,15 +178,39 @@ public class SupplierService : ISupplierService
             .FirstOrDefaultAsync(s => s.SupplierId == id);
 
         if (supplier == null)
-            throw new Exception("Supplier not found");
+            throw new Exception("Không tìm thấy nhà cung cấp");
 
-        // Check if supplier has products
+        // Kiểm tra xem nhà cung cấp có sản phẩm không
         if (supplier.Products != null && supplier.Products.Any())
-            throw new Exception("Cannot delete supplier with existing products");
+            throw new Exception("Không thể xóa nhà cung cấp vì đang có sản phẩm liên kết");
 
         _context.Suppliers.Remove(supplier);
         await _context.SaveChangesAsync();
 
         return true;
+    }
+
+    // Helper để tạo SupplierId duy nhất
+    private async Task<string> GenerateSupplierId()
+    {
+        var random = new Random();
+        string supplierId;
+        bool exists;
+        int attempt = 0;
+        const int maxAttempts = 10;
+
+        do
+        {
+            var randomNumber = random.Next(100000, 999999).ToString();
+            supplierId = "SU" + randomNumber;
+            exists = await _context.Suppliers.AnyAsync(s => s.SupplierId == supplierId);
+            attempt++;
+
+            if (attempt >= maxAttempts)
+                throw new Exception("Không thể tạo ID nhà cung cấp duy nhất");
+
+        } while (exists);
+
+        return supplierId;
     }
 }

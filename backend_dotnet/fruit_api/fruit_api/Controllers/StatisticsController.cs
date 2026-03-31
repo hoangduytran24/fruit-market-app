@@ -63,12 +63,12 @@ public class StatisticsController : ControllerBase
     }
 
     /// <summary>
-    /// Lấy thống kê người dùng
+    /// Lấy thống kê tổng hợp đơn hàng
     /// </summary>
-    [HttpGet("users")]
-    public async Task<IActionResult> GetUserStatistics()
+    [HttpGet("orders")]
+    public async Task<IActionResult> GetOrderStatistics()
     {
-        var stats = await _statisticsService.GetUserStatisticsAsync();
+        var stats = await _statisticsService.GetOrderStatisticsAsync();
         return Ok(stats);
     }
 }

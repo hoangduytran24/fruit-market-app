@@ -4,6 +4,7 @@ import '../providers/order_provider.dart';
 import '../models/order.dart';
 import '../utils/image_utils.dart';
 import '../utils/responsive.dart';
+import '../utils/pdf_helper.dart'; // Đã thêm import này
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -190,7 +191,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: Container(
               width: minTableWidth,
               margin: const EdgeInsets.all(16),
@@ -209,6 +209,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ],
               ),
             ),
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
           ),
         ),
       ),
@@ -392,12 +393,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
 class _OrderDetailDialog extends StatelessWidget {
   final Order order;
-  final Function formatCurrency;
+  final String Function(double) formatCurrency; // Sửa kiểu dữ liệu function
   final Map<String, String> statusMap;
   final Color primaryGreen;
   final Function getPaymentText;
   final Function getPaymentColor;
-  final Function formatDate;
+  final String Function(DateTime) formatDate; // Sửa kiểu dữ liệu function
 
   const _OrderDetailDialog({
     required this.order,
@@ -557,7 +558,6 @@ class _OrderDetailDialog extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  // Nút Đóng luôn hiện
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
@@ -571,13 +571,17 @@ class _OrderDetailDialog extends StatelessWidget {
 
                   const SizedBox(width: 12),
 
-                  // Nếu trạng thái là THÀNH CÔNG -> Hiện nút Xuất Hóa Đơn
+                  // NÚT XUẤT HÓA ĐƠN: Đã thêm logic tại đây
                   if (isCompleted) 
                     Expanded(
                       flex: 2,
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          // Logic xuất PDF ở đây
+                        onPressed: () async {
+                          await PdfHelper.generateInvoice(
+                            order: order,
+                            formatCurrency: formatCurrency,
+                            formatDate: formatDate,
+                          );
                         },
                         icon: const Icon(Icons.picture_as_pdf),
                         label: const Text("Xuất hóa đơn", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -590,7 +594,6 @@ class _OrderDetailDialog extends StatelessWidget {
                         ),
                       ),
                     )
-                  // Nếu chưa thành công và có bước tiếp theo -> Hiện nút Cập nhật trạng thái
                   else if (nextInfo != null)
                     Expanded(
                       flex: 2,

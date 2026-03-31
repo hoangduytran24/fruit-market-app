@@ -101,31 +101,31 @@ class OrderStatusStats {
   }
 }
 
-class UserStats {
+class OrderStats {
   final int total;
-  final int active;
-  final int inactive;
-  final int banned;
-  final int customers;
-  final int admins;
+  final int pending;
+  final int processing;
+  final int shipping;
+  final int completed;
+  final int cancelled;
 
-  UserStats({
+  OrderStats({
     required this.total,
-    required this.active,
-    required this.inactive,
-    required this.banned,
-    required this.customers,
-    required this.admins,
+    required this.pending,
+    required this.processing,
+    required this.shipping,
+    required this.completed,
+    required this.cancelled,
   });
 
-  factory UserStats.fromJson(Map<String, dynamic> json) {
-    return UserStats(
+  factory OrderStats.fromJson(Map<String, dynamic> json) {
+    return OrderStats(
       total: json['total'] ?? 0,
-      active: json['active'] ?? 0,
-      inactive: json['inactive'] ?? 0,
-      banned: json['banned'] ?? 0,
-      customers: json['customers'] ?? 0,
-      admins: json['admins'] ?? 0,
+      pending: json['pending'] ?? 0,
+      processing: json['processing'] ?? 0,
+      shipping: json['shipping'] ?? 0,
+      completed: json['completed'] ?? 0,
+      cancelled: json['cancelled'] ?? 0,
     );
   }
 }

@@ -47,7 +47,7 @@ class StatisticsService {
     }
   }
 
-  // 4. NEW: GET: api/Statistics/order-status
+  // 4. GET: api/Statistics/order-status
   static Future<OrderStatusStats?> getOrderStatusStatistics() async {
     try {
       final response = await ApiService.get('Statistics/order-status');
@@ -61,16 +61,16 @@ class StatisticsService {
     }
   }
 
-  // 5. NEW: GET: api/Statistics/users
-  static Future<UserStats?> getUserStatistics() async {
+  // 5. GET: api/Statistics/orders (Mới)
+  static Future<OrderStats?> getOrderStatistics() async {
     try {
-      final response = await ApiService.get('Statistics/users');
+      final response = await ApiService.get('Statistics/orders');
       if (response.statusCode == 200) {
-        return UserStats.fromJson(json.decode(response.body));
+        return OrderStats.fromJson(json.decode(response.body));
       }
       return null;
     } catch (e) {
-      print('Lỗi StatisticsService.getUserStatistics: $e');
+      print('Lỗi StatisticsService.getOrderStatistics: $e');
       return null;
     }
   }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
@@ -12,7 +13,22 @@ import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 
 void main() {
+  // Bỏ qua SSL certificate cho môi trường development
+  HttpOverrides.global = MyHttpOverrides();
+  
+  // Đợi widget binding khởi tạo
+  WidgetsFlutterBinding.ensureInitialized();
+  
   runApp(const MyApp());
+}
+
+// Class để bỏ qua kiểm tra SSL certificate
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
 }
 
 class MyApp extends StatelessWidget {
