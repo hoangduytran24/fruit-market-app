@@ -151,7 +151,7 @@ public class OrderService : IOrderService
             FinalAmount = o.FinalAmount,
             Status = o.Status,
             ItemCount = o.OrderItems != null ? o.OrderItems.Count : 0,
-            PaymentStatus = o.Payment != null ? o.Payment.PaymentStatus : "unpaid"  // ← THÊM DÒNG NÀY
+            PaymentStatus = o.Payment != null ? o.Payment.PaymentStatus : "unpaid"
         }).ToListAsync();
     }
 
@@ -198,7 +198,6 @@ public class OrderService : IOrderService
 
     public async Task<OrderDto> CreateOrderAsync(string userId, CreateOrderDto createOrderDto)
     {
-        // Get user's cart
         var cart = await _context.Carts
             .Include(c => c.CartItems!)
                 .ThenInclude(ci => ci.Product)
@@ -207,7 +206,6 @@ public class OrderService : IOrderService
         if (cart == null || cart.CartItems == null || !cart.CartItems.Any())
             throw new Exception("Cart is empty");
 
-        // Check stock and calculate subtotal (tổng tiền hàng chưa bao gồm phí ship)
         decimal subtotal = 0;
         foreach (var item in cart.CartItems)
         {
@@ -220,7 +218,6 @@ public class OrderService : IOrderService
             subtotal += item.Quantity * item.PriceAtTime;
         }
 
-        // Áp dụng voucher trên subtotal
         decimal discountAmount = 0;
         OrderVoucher? orderVoucher = null;
 
@@ -241,20 +238,26 @@ public class OrderService : IOrderService
                     VoucherId = voucherResult.Voucher.VoucherId,
                     DiscountAmount = discountAmount
                 };
+
+                // ========== THÊM CODE NÀY ==========
+                // Cập nhật usedQuantity trong bảng Vouchers
+                var voucher = await _context.Vouchers.FindAsync(voucherResult.Voucher.VoucherId);
+                if (voucher != null)
+                {
+                    voucher.UsedQuantity += 1;
+                }
+                // ================================
             }
         }
 
-        // SỬA QUAN TRỌNG: totalAmount = subtotal + shippingFee (chưa trừ giảm giá)
-        // Database sẽ tự tính finalAmount = totalAmount - discountAmount
         decimal totalAmount = subtotal + createOrderDto.ShippingFee;
 
-        // Create order
         var order = new Order
         {
             OrderId = await GenerateOrderId(),
             UserId = userId,
-            TotalAmount = totalAmount,           // = subtotal + shippingFee
-            DiscountAmount = discountAmount,      // số tiền giảm
+            TotalAmount = totalAmount,
+            DiscountAmount = discountAmount,
             Status = "pending",
             PaymentMethod = createOrderDto.PaymentMethod,
             DeliveryAddress = createOrderDto.DeliveryAddress,
@@ -264,7 +267,6 @@ public class OrderService : IOrderService
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Create order items
         foreach (var item in cart.CartItems)
         {
             var orderItem = new OrderItem
@@ -277,7 +279,6 @@ public class OrderService : IOrderService
             };
             _context.OrderItems.Add(orderItem);
 
-            // Update stock
             var product = await _context.Products.FindAsync(item.ProductId);
             if (product != null)
             {
@@ -285,18 +286,15 @@ public class OrderService : IOrderService
             }
         }
 
-        // Add order voucher if exists
         if (orderVoucher != null)
         {
             orderVoucher.OrderId = order.OrderId;
             _context.OrderVouchers.Add(orderVoucher);
         }
 
-        // Clear cart
         _context.CartItems.RemoveRange(cart.CartItems);
         cart.UpdatedAt = DateTime.UtcNow;
 
-        // Create payment record (số tiền thực tế cần thanh toán)
         var payment = new Payment
         {
             PaymentId = await GeneratePaymentId(),
@@ -314,7 +312,6 @@ public class OrderService : IOrderService
 
     public async Task<OrderDto> BuyNowAsync(string userId, BuyNowDto buyNowDto)
     {
-        // Validate input
         if (buyNowDto.Quantity <= 0)
             throw new Exception("Quantity must be greater than 0");
 
@@ -324,20 +321,16 @@ public class OrderService : IOrderService
         if (string.IsNullOrEmpty(buyNowDto.PaymentMethod))
             throw new Exception("Payment method is required");
 
-        // Get product
         var product = await _context.Products.FindAsync(buyNowDto.ProductId);
 
         if (product == null)
             throw new Exception("Product not found");
 
-        // Check stock
         if (product.StockQuantity < buyNowDto.Quantity)
             throw new Exception($"Not enough stock for product: {product.ProductName}. Available: {product.StockQuantity}");
 
-        // Calculate subtotal (tổng tiền hàng chưa bao gồm phí ship)
         decimal subtotal = product.Price * buyNowDto.Quantity;
 
-        // Áp dụng voucher trên subtotal
         decimal discountAmount = 0;
         OrderVoucher? orderVoucher = null;
 
@@ -358,19 +351,26 @@ public class OrderService : IOrderService
                     VoucherId = voucherResult.Voucher.VoucherId,
                     DiscountAmount = discountAmount
                 };
+
+                // ========== THÊM CODE NÀY ==========
+                // Cập nhật usedQuantity trong bảng Vouchers
+                var voucher = await _context.Vouchers.FindAsync(voucherResult.Voucher.VoucherId);
+                if (voucher != null)
+                {
+                    voucher.UsedQuantity += 1;
+                }
+                // ================================
             }
         }
 
-        // SỬA QUAN TRỌNG: totalAmount = subtotal + shippingFee (chưa trừ giảm giá)
         decimal totalAmount = subtotal + buyNowDto.ShippingFee;
 
-        // Create order
         var order = new Order
         {
             OrderId = await GenerateOrderId(),
             UserId = userId,
-            TotalAmount = totalAmount,           // = subtotal + shippingFee
-            DiscountAmount = discountAmount,      // số tiền giảm
+            TotalAmount = totalAmount,
+            DiscountAmount = discountAmount,
             Status = "pending",
             PaymentMethod = buyNowDto.PaymentMethod,
             DeliveryAddress = buyNowDto.DeliveryAddress,
@@ -380,7 +380,6 @@ public class OrderService : IOrderService
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
-        // Create order item
         var orderItem = new OrderItem
         {
             OrderItemId = await GenerateOrderItemId(),
@@ -391,17 +390,14 @@ public class OrderService : IOrderService
         };
         _context.OrderItems.Add(orderItem);
 
-        // Update stock
         product.StockQuantity -= buyNowDto.Quantity;
 
-        // Add order voucher if exists
         if (orderVoucher != null)
         {
             orderVoucher.OrderId = order.OrderId;
             _context.OrderVouchers.Add(orderVoucher);
         }
 
-        // Create payment record (số tiền thực tế cần thanh toán)
         var payment = new Payment
         {
             PaymentId = await GeneratePaymentId(),
@@ -425,7 +421,6 @@ public class OrderService : IOrderService
 
         order.Status = updateDto.Status;
 
-        // Cập nhật payment status dựa trên order status
         var payment = await _context.Payments.FirstOrDefaultAsync(p => p.OrderId == id);
 
         if (order.Status == "completed")
@@ -463,14 +458,12 @@ public class OrderService : IOrderService
 
         order.Status = "cancelled";
 
-        // Update payment status
         var payment = await _context.Payments.FirstOrDefaultAsync(p => p.OrderId == id);
         if (payment != null)
         {
             payment.PaymentStatus = "cancelled";
         }
 
-        // Restore stock (trigger sẽ tự động xử lý)
         await _context.SaveChangesAsync();
 
         return true;

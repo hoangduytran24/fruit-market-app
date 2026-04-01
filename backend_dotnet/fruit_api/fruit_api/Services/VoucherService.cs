@@ -77,14 +77,12 @@ public class VoucherService : IVoucherService
         {
             _logger.LogInformation("Creating new voucher: {VoucherCode}", createDto.VoucherCode);
 
-            // Check if voucher code exists
             var existing = await _context.Vouchers
                 .FirstOrDefaultAsync(v => v.VoucherCode == createDto.VoucherCode);
 
             if (existing != null)
                 throw new Exception("Mã voucher đã tồn tại");
 
-            // Validate discount type
             if (createDto.DiscountType.ToLower() != "percent" &&
                 createDto.DiscountType.ToLower() != "percentage" &&
                 createDto.DiscountType.ToLower() != "fixed")
@@ -92,14 +90,12 @@ public class VoucherService : IVoucherService
                 throw new Exception("Loại giảm giá phải là 'percent' hoặc 'fixed'");
             }
 
-            // Validate discount value
             if (createDto.DiscountValue <= 0)
                 throw new Exception("Giá trị giảm phải lớn hơn 0");
 
             if (createDto.DiscountType.ToLower() == "percent" && createDto.DiscountValue > 100)
                 throw new Exception("Giảm phần trăm không thể vượt quá 100%");
 
-            // Generate Voucher ID (VC + 10 digits)
             string voucherId = await GenerateVoucherId();
 
             var voucher = new Voucher
@@ -140,7 +136,6 @@ public class VoucherService : IVoucherService
             if (voucher == null)
                 throw new Exception("Không tìm thấy voucher");
 
-            // Check if new code already exists (if code is being changed)
             if (voucher.VoucherCode != updateDto.VoucherCode)
             {
                 var existing = await _context.Vouchers
@@ -149,7 +144,6 @@ public class VoucherService : IVoucherService
                     throw new Exception("Mã voucher đã tồn tại");
             }
 
-            // Validate discount type
             if (updateDto.DiscountType.ToLower() != "percent" &&
                 updateDto.DiscountType.ToLower() != "percentage" &&
                 updateDto.DiscountType.ToLower() != "fixed")
@@ -157,14 +151,12 @@ public class VoucherService : IVoucherService
                 throw new Exception("Loại giảm giá phải là 'percent' hoặc 'fixed'");
             }
 
-            // Validate discount value
             if (updateDto.DiscountValue <= 0)
                 throw new Exception("Giá trị giảm phải lớn hơn 0");
 
             if (updateDto.DiscountType.ToLower() == "percent" && updateDto.DiscountValue > 100)
                 throw new Exception("Giảm phần trăm không thể vượt quá 100%");
 
-            // Update fields
             voucher.VoucherCode = updateDto.VoucherCode.ToUpper().Trim();
             voucher.DiscountType = updateDto.DiscountType.ToLower();
             voucher.DiscountValue = updateDto.DiscountValue;
@@ -242,7 +234,6 @@ public class VoucherService : IVoucherService
         {
             var now = DateTime.Now;
 
-            // Lấy dữ liệu từ database trước
             var vouchers = await _context.Vouchers
                 .Where(v => v.Status == "active" &&
                            v.Quantity > v.UsedQuantity &&
@@ -264,7 +255,6 @@ public class VoucherService : IVoucherService
                 })
                 .ToListAsync();
 
-            // Sau đó xử lý Description trong memory
             var result = vouchers.Select(v => new VoucherPublicDto
             {
                 VoucherId = v.VoucherId,
@@ -295,7 +285,6 @@ public class VoucherService : IVoucherService
             var voucher = await _context.Vouchers
                 .FirstOrDefaultAsync(v => v.VoucherCode == applyDto.VoucherCode.ToUpper().Trim());
 
-            // 1. Check code exists
             if (voucher == null)
             {
                 return new VoucherResultDto
@@ -307,7 +296,6 @@ public class VoucherService : IVoucherService
                 };
             }
 
-            // 2. Check if voucher is active
             if (voucher.Status != "active")
             {
                 return new VoucherResultDto
@@ -319,7 +307,6 @@ public class VoucherService : IVoucherService
                 };
             }
 
-            // 3. Check quantity
             if (voucher.UsedQuantity >= voucher.Quantity)
             {
                 return new VoucherResultDto
@@ -331,7 +318,6 @@ public class VoucherService : IVoucherService
                 };
             }
 
-            // 4. Check date
             var now = DateTime.Now;
             if (voucher.StartDate.HasValue && voucher.StartDate > now)
             {
@@ -355,7 +341,6 @@ public class VoucherService : IVoucherService
                 };
             }
 
-            // 5. Check min order value
             if (applyDto.OrderTotal < voucher.MinOrderValue)
             {
                 return new VoucherResultDto
@@ -367,7 +352,6 @@ public class VoucherService : IVoucherService
                 };
             }
 
-            // Calculate discount
             decimal discountAmount = 0;
             if (voucher.DiscountType.ToLower() == "percent" || voucher.DiscountType.ToLower() == "percentage")
             {
@@ -377,7 +361,7 @@ public class VoucherService : IVoucherService
                     discountAmount = voucher.MaxDiscountValue.Value;
                 }
             }
-            else // fixed
+            else
             {
                 discountAmount = voucher.DiscountValue;
             }
@@ -418,14 +402,12 @@ public class VoucherService : IVoucherService
         {
             _logger.LogInformation("Saving voucher for user {UserId}, code {VoucherCode}", userId, voucherCode);
 
-            // Kiểm tra voucher có tồn tại và khả dụng không
             var voucher = await _context.Vouchers
                 .FirstOrDefaultAsync(v => v.VoucherCode == voucherCode.ToUpper().Trim());
 
             if (voucher == null)
                 throw new Exception("Voucher không tồn tại");
 
-            // Kiểm tra voucher còn hiệu lực
             var now = DateTime.Now;
             if (voucher.Status != "active" ||
                 voucher.UsedQuantity >= voucher.Quantity ||
@@ -435,7 +417,6 @@ public class VoucherService : IVoucherService
                 throw new Exception("Voucher không khả dụng để lưu");
             }
 
-            // Kiểm tra user đã lưu voucher này chưa
             var existing = await _context.UserVouchers
                 .FirstOrDefaultAsync(uv => uv.UserId == userId && uv.VoucherId == voucher.VoucherId);
 
@@ -447,10 +428,8 @@ public class VoucherService : IVoucherService
                     throw new Exception("Bạn đã lưu voucher này rồi");
             }
 
-            // Generate UserVoucher ID (UV + 10 digits)
             string userVoucherId = await GenerateUserVoucherId();
 
-            // Lưu voucher cho user
             var userVoucher = new UserVoucher
             {
                 UserVoucherId = userVoucherId,
@@ -493,7 +472,6 @@ public class VoucherService : IVoucherService
     {
         try
         {
-            // Lấy dữ liệu từ database trước
             var userVouchers = await _context.UserVouchers
                 .Include(uv => uv.Voucher)
                 .Where(uv => uv.UserId == userId && !uv.IsUsed)
@@ -522,7 +500,6 @@ public class VoucherService : IVoucherService
                 })
                 .ToListAsync();
 
-            // Sau đó xử lý Description trong memory
             var result = userVouchers.Select(uv => new UserVoucherDto
             {
                 UserVoucherId = uv.UserVoucherId,
@@ -575,7 +552,6 @@ public class VoucherService : IVoucherService
             if (userVoucher.IsUsed)
                 throw new Exception("Voucher đã được sử dụng");
 
-            // Kiểm tra voucher còn hiệu lực
             var now = DateTime.Now;
             var voucher = userVoucher.Voucher;
 
@@ -594,12 +570,13 @@ public class VoucherService : IVoucherService
             if (voucher.EndDate.HasValue && voucher.EndDate < now)
                 throw new Exception("Voucher đã hết hạn");
 
-            // Đánh dấu đã sử dụng
             userVoucher.IsUsed = true;
             userVoucher.UsedAt = now;
 
+            // ========== THÊM CODE NÀY ==========
             // Tăng số lượt đã dùng của voucher
             voucher.UsedQuantity++;
+            // ================================
 
             await _context.SaveChangesAsync();
 
@@ -615,7 +592,6 @@ public class VoucherService : IVoucherService
 
     // ==================== ID GENERATORS ====================
 
-    // Generate Voucher ID: VC + 10 digits (e.g., VC1234567890)
     private async Task<string> GenerateVoucherId()
     {
         string voucherId;
@@ -625,7 +601,6 @@ public class VoucherService : IVoucherService
 
         do
         {
-            // Sinh số ngẫu nhiên 10 chữ số
             var randomNumber = _random.Next(1000000000, 1999999999).ToString().Substring(1);
             voucherId = "VC" + randomNumber;
             exists = await _context.Vouchers.AnyAsync(v => v.VoucherId == voucherId);
@@ -639,7 +614,6 @@ public class VoucherService : IVoucherService
         return voucherId;
     }
 
-    // Generate UserVoucher ID: UV + 10 digits (e.g., UV1234567890)
     private async Task<string> GenerateUserVoucherId()
     {
         string userVoucherId;
@@ -649,7 +623,6 @@ public class VoucherService : IVoucherService
 
         do
         {
-            // Sinh số ngẫu nhiên 10 chữ số
             var randomNumber = _random.Next(1000000000, 1999999999).ToString().Substring(1);
             userVoucherId = "UV" + randomNumber;
             exists = await _context.UserVouchers.AnyAsync(uv => uv.UserVoucherId == userVoucherId);
