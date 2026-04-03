@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
+import '../providers/real_time_provider.dart'; // Đã thêm
 import '../models/Order.dart';
 import '../models/OrderItem.dart';
 import 'order_detail_screen.dart';
@@ -19,20 +20,21 @@ class _OrdersScreenState extends State<OrdersScreen>
   late TabController _tabController;
   bool _isLoading = true;
 
-  // Fresh fruit color palette
+  // Fresh fruit color palette - Giữ nguyên từ file mẫu của bạn
   static const _primaryGreen = Color(0xFF2E7D32);
-  static const _lightGreen = Color(0xFF66BB6A);
   static const _orange = Color(0xFFFF9800);
   static const _blue = Color(0xFF2196F3);
+  static const _teal = Colors.teal; // Màu cho Processing
   static const _red = Color(0xFFEF5350);
   static const _background = Color(0xFFF9F9F9);
   static const _cardWhite = Colors.white;
   static const _textDark = Color(0xFF2C3E2F);
   static const _textLight = Color(0xFF7C9A7E);
 
-  static const _statuses = ['pending', 'shipping', 'completed', 'cancelled'];
+  // Đã thêm 'processing' vào danh sách
+  static const _statuses = ['pending', 'processing', 'shipping', 'completed', 'cancelled'];
   
-  // Mỗi trạng thái có màu sắc riêng biệt
+  // Cấu hình trạng thái - Đã cập nhật thêm 'processing'
   static const _statusConfig = {
     'pending': {
       'label': 'Chờ xử lý',
@@ -40,6 +42,13 @@ class _OrdersScreenState extends State<OrdersScreen>
       'color': _orange,
       'bg': Color(0xFFFFF3E0),
       'border': Color(0xFFFFE0B2),
+    },
+    'processing': {
+      'label': 'Đóng gói',
+      'icon': Icons.inventory_2,
+      'color': _teal,
+      'bg': Color(0xFFE0F2F1),
+      'border': Color(0xFFB2DFDB),
     },
     'shipping': {
       'label': 'Đang giao',
@@ -71,17 +80,31 @@ class _OrdersScreenState extends State<OrdersScreen>
     if (widget.initialStatus != null && _statuses.contains(widget.initialStatus)) {
       _tabController.animateTo(_statuses.indexOf(widget.initialStatus!));
     }
-    _loadOrders();
+
+    // Tích hợp RealTimeProvider và Load dữ liệu ban đầu
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final realTimeProvider = context.read<RealTimeProvider>();
+      realTimeProvider.initialize();
+      realTimeProvider.addListener(_onRealTimeUpdate);
+      _loadOrders();
+    });
+  }
+
+  void _onRealTimeUpdate() {
+    if (mounted) {
+      context.read<OrderProvider>().fetchMyOrders(forceRefresh: true);
+    }
   }
 
   Future<void> _loadOrders() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     await Provider.of<OrderProvider>(context, listen: false).fetchMyOrders();
     if (mounted) setState(() => _isLoading = false);
   }
 
   List<Order> _getFilteredOrders(List<Order> orders, String status) =>
-      orders.where((o) => o.status == status).toList();
+      orders.where((o) => o.status.toLowerCase() == status.toLowerCase()).toList();
 
   String _formatCurrency(double amount) {
     final formatted = amount.round().toString().replaceAllMapped(
@@ -91,44 +114,9 @@ class _OrdersScreenState extends State<OrdersScreen>
     return '$formatted₫';
   }
 
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'pending': return 'Chờ xử lý';
-      case 'shipping': return 'Đang giao';
-      case 'completed': return 'Đã giao';
-      case 'cancelled': return 'Đã hủy';
-      default: return status;
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending': return _orange;
-      case 'shipping': return _blue;
-      case 'completed': return _primaryGreen;
-      case 'cancelled': return _red;
-      default: return _textLight;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'pending': return Icons.access_time_filled;
-      case 'shipping': return Icons.local_shipping;
-      case 'completed': return Icons.check_circle;
-      case 'cancelled': return Icons.cancel;
-      default: return Icons.receipt;
-    }
-  }
-
-  String _getFullImageUrl(String imageUrl) {
-    if (imageUrl.startsWith('http')) return imageUrl;
-    final baseUrl = 'https://10.0.2.2:7262';
-    return imageUrl.startsWith('/') ? '$baseUrl$imageUrl' : '$baseUrl/$imageUrl';
-  }
-
   @override
   void dispose() {
+    context.read<RealTimeProvider>().removeListener(_onRealTimeUpdate);
     _tabController.dispose();
     super.dispose();
   }
@@ -188,12 +176,13 @@ class _OrdersScreenState extends State<OrdersScreen>
     final config = _statusConfig[status]!;
     return Tab(
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(config['icon'] as IconData, size: 16, color: config['color'] as Color),
           const SizedBox(width: 6),
           Text(
             config['label'] as String,
-            style: TextStyle(color: config['color'] as Color),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -201,21 +190,17 @@ class _OrdersScreenState extends State<OrdersScreen>
   }
 
   Widget _buildBody(List<Order> orders) {
-    if (_isLoading) {
+    if (_isLoading && orders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(color: _primaryGreen),
+            const CircularProgressIndicator(color: _primaryGreen, strokeWidth: 3),
             const SizedBox(height: 12),
             Text('Đang tải đơn hàng...', style: TextStyle(color: _textLight)),
           ],
         ),
       );
-    }
-    
-    if (orders.isEmpty) {
-      return _buildEmptyState();
     }
     
     return TabBarView(
@@ -234,65 +219,11 @@ class _OrdersScreenState extends State<OrdersScreen>
                     order: filteredOrders[i],
                     onCancel: _showCancelConfirmDialog,
                     formatCurrency: _formatCurrency,
-                    getStatusText: _getStatusText,
-                    getStatusColor: _getStatusColor,
-                    getStatusIcon: _getStatusIcon,
-                    getFullImageUrl: _getFullImageUrl,
+                    statusConfig: _statusConfig,
                   ),
                 ),
               );
       }).toList(),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 90,
-            height: 90,
-            decoration: BoxDecoration(
-              color: _lightGreen.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.shopping_bag_outlined,
-              size: 44,
-              color: _lightGreen,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Chưa có đơn hàng',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: _textDark,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Hãy mua sắm trái cây tươi ngon',
-            style: TextStyle(fontSize: 14, color: _textLight),
-          ),
-          const SizedBox(height: 28),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryGreen,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-              elevation: 0,
-            ),
-            child: const Text('Mua sắm ngay', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -359,11 +290,10 @@ class _OrdersScreenState extends State<OrdersScreen>
     
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Đã hủy đơn hàng'),
+        const SnackBar(
+          content: Text('Đã hủy đơn hàng'),
           backgroundColor: _primaryGreen,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
         ),
       );
       await _loadOrders();
@@ -379,15 +309,11 @@ class _OrdersScreenState extends State<OrdersScreen>
   }
 }
 
-// Order Card
 class _OrderCard extends StatelessWidget {
   final Order order;
   final void Function(Order) onCancel;
   final String Function(double) formatCurrency;
-  final String Function(String) getStatusText;
-  final Color Function(String) getStatusColor;
-  final IconData Function(String) getStatusIcon;
-  final String Function(String) getFullImageUrl;
+  final Map<String, Map<String, dynamic>> statusConfig;
 
   static const _primaryGreen = Color(0xFF2E7D32);
   static const _textDark = Color(0xFF2C3E2F);
@@ -398,15 +324,20 @@ class _OrderCard extends StatelessWidget {
     required this.order,
     required this.onCancel,
     required this.formatCurrency,
-    required this.getStatusText,
-    required this.getStatusColor,
-    required this.getStatusIcon,
-    required this.getFullImageUrl,
+    required this.statusConfig,
   });
+
+  String _getFullImageUrl(String imageUrl) {
+    if (imageUrl.startsWith('http')) return imageUrl;
+    const baseUrl = 'https://10.0.2.2:7262';
+    return imageUrl.startsWith('/') ? '$baseUrl$imageUrl' : '$baseUrl/$imageUrl';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = getStatusColor(order.status);
+    // Lấy config theo status, mặc định là pending nếu không tìm thấy
+    final config = statusConfig[order.status.toLowerCase()] ?? statusConfig['pending']!;
+    final statusColor = config['color'] as Color;
     
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -422,7 +353,7 @@ class _OrderCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            _buildHeader(statusColor),
+            _buildHeader(config, statusColor),
             _buildProductList(),
             _buildFooter(context, statusColor),
           ],
@@ -431,7 +362,7 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(Color statusColor) {
+  Widget _buildHeader(Map<String, dynamic> config, Color statusColor) {
     return Padding(
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -439,11 +370,11 @@ class _OrderCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.receipt_outlined, size: 14, color: _textLight),
+              const Icon(Icons.receipt_outlined, size: 14, color: _textLight),
               const SizedBox(width: 6),
               Text(
                 order.orderId,
-                style: TextStyle(fontSize: 12, color: _textLight, fontWeight: FontWeight.w500),
+                style: const TextStyle(fontSize: 12, color: _textLight, fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -456,10 +387,10 @@ class _OrderCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(getStatusIcon(order.status), size: 12, color: statusColor),
+                Icon(config['icon'] as IconData, size: 12, color: statusColor),
                 const SizedBox(width: 4),
                 Text(
-                  getStatusText(order.status),
+                  config['label'] as String,
                   style: TextStyle(
                     fontSize: 11, 
                     fontWeight: FontWeight.w600, 
@@ -476,7 +407,6 @@ class _OrderCard extends StatelessWidget {
 
   Widget _buildProductList() {
     if (order.items == null || order.items!.isEmpty) return const SizedBox();
-    
     final items = order.items!.take(2).toList();
     
     return Padding(
@@ -495,21 +425,21 @@ class _OrderCard extends StatelessWidget {
                     children: [
                       Text(
                         item.productName,
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textDark),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _textDark),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${formatCurrency(item.priceAtTime)} x ${item.quantity}',
-                        style: TextStyle(fontSize: 12, color: _textLight),
+                        style: const TextStyle(fontSize: 12, color: _textLight),
                       ),
                     ],
                   ),
                 ),
                 Text(
                   formatCurrency(item.subtotal),
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _primaryGreen),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _primaryGreen),
                 ),
               ],
             ),
@@ -519,11 +449,11 @@ class _OrderCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 children: [
-                  Icon(Icons.add, size: 14, color: _textLight),
+                  const Icon(Icons.add, size: 14, color: _textLight),
                   const SizedBox(width: 6),
                   Text(
                     '${order.items!.length - 2} sản phẩm khác',
-                    style: TextStyle(fontSize: 12, color: _textLight),
+                    style: const TextStyle(fontSize: 12, color: _textLight),
                   ),
                 ],
               ),
@@ -542,11 +472,11 @@ class _OrderCard extends StatelessWidget {
         color: const Color(0xFFF5F5F5),
         child: item.imageUrl != null && item.imageUrl!.isNotEmpty
             ? Image.network(
-                getFullImageUrl(item.imageUrl!),
+                _getFullImageUrl(item.imageUrl!),
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Icon(Icons.image_outlined, size: 24, color: _textLight),
+                errorBuilder: (_, __, ___) => const Icon(Icons.image_outlined, size: 24, color: _textLight),
               )
-            : Icon(Icons.image_outlined, size: 24, color: _textLight),
+            : const Icon(Icons.image_outlined, size: 24, color: _textLight),
       ),
     );
   }
@@ -554,7 +484,7 @@ class _OrderCard extends StatelessWidget {
   Widget _buildFooter(BuildContext context, Color statusColor) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: _borderLight)),
       ),
       child: Row(
@@ -563,16 +493,16 @@ class _OrderCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tổng cộng', style: TextStyle(fontSize: 12, color: _textLight)),
+              const Text('Tổng cộng', style: TextStyle(fontSize: 12, color: _textLight)),
               Text(
-                formatCurrency(order.finalAmount+25000),
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryGreen),
+                formatCurrency(order.finalAmount + 25000), // Cộng phí ship 25k như file cũ
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryGreen),
               ),
             ],
           ),
           Row(
             children: [
-              if (order.status == 'pending')
+              if (order.status.toLowerCase() == 'pending')
                 OutlinedButton(
                   onPressed: () => onCancel(order),
                   style: OutlinedButton.styleFrom(

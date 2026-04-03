@@ -3,6 +3,7 @@ using fruit_api.Data;
 using fruit_api.DTOs.Order;
 using fruit_api.Models;
 using fruit_api.Services.Interfaces;
+using fruit_api.DTOs.RealTime;
 
 namespace fruit_api.Services;
 
@@ -10,12 +11,20 @@ public class OrderService : IOrderService
 {
     private readonly ApplicationDbContext _context;
     private readonly IVoucherService _voucherService;
+    private readonly IRealTimeService _realTimeService;
+    private readonly ILogger<OrderService> _logger;
     private static readonly Random _random = new();
 
-    public OrderService(ApplicationDbContext context, IVoucherService voucherService)
+    public OrderService(
+        ApplicationDbContext context,
+        IVoucherService voucherService,
+        IRealTimeService realTimeService,
+        ILogger<OrderService> logger)
     {
         _context = context;
         _voucherService = voucherService;
+        _realTimeService = realTimeService;
+        _logger = logger;
     }
 
     private async Task<string> GenerateOrderId()
@@ -239,18 +248,16 @@ public class OrderService : IOrderService
                     DiscountAmount = discountAmount
                 };
 
-                // ========== THÊM CODE NÀY ==========
-                // Cập nhật usedQuantity trong bảng Vouchers
                 var voucher = await _context.Vouchers.FindAsync(voucherResult.Voucher.VoucherId);
                 if (voucher != null)
                 {
                     voucher.UsedQuantity += 1;
                 }
-                // ================================
             }
         }
 
         decimal totalAmount = subtotal + createOrderDto.ShippingFee;
+        // KHÔNG gán FinalAmount - nó sẽ tự tính trong database
 
         var order = new Order
         {
@@ -258,6 +265,7 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
+            // FinalAmount KHÔNG gán - computed property
             Status = "pending",
             PaymentMethod = createOrderDto.PaymentMethod,
             DeliveryAddress = createOrderDto.DeliveryAddress,
@@ -266,6 +274,13 @@ public class OrderService : IOrderService
 
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
+
+        var customerName = string.Empty;
+        var user = await _context.Users.FindAsync(userId);
+        if (user != null)
+        {
+            customerName = user.FullName;
+        }
 
         foreach (var item in cart.CartItems)
         {
@@ -276,6 +291,7 @@ public class OrderService : IOrderService
                 ProductId = item.ProductId,
                 Quantity = item.Quantity,
                 PriceAtTime = item.PriceAtTime
+                // Subtotal KHÔNG gán - computed property
             };
             _context.OrderItems.Add(orderItem);
 
@@ -299,13 +315,42 @@ public class OrderService : IOrderService
         {
             PaymentId = await GeneratePaymentId(),
             OrderId = order.OrderId,
-            Amount = subtotal + createOrderDto.ShippingFee - discountAmount,
+            Amount = totalAmount - discountAmount,
             PaymentMethod = createOrderDto.PaymentMethod,
             PaymentStatus = "unpaid"
         };
         _context.Payments.Add(payment);
 
         await _context.SaveChangesAsync();
+
+        // ========== GỬI REAL-TIME NOTIFICATION ==========
+        try
+        {
+            // Gửi thông báo đến admin
+            await _realTimeService.NotifyNewOrderToAdminsAsync(new NewOrderNotificationDto
+            {
+                OrderId = order.OrderId,
+                OrderCode = order.OrderId,
+                CustomerName = customerName,
+                TotalAmount = order.FinalAmount,
+                CreatedAt = order.CreatedAt
+            });
+
+            // Gửi thông báo đến user
+            await _realTimeService.NotifyUserAsync(
+                userId,
+                "OrderCreated",
+                $"Đơn hàng {order.OrderId} đã được tạo thành công",
+                new { OrderId = order.OrderId, OrderCode = order.OrderId, Status = order.Status }
+            );
+
+            _logger.LogInformation($"Real-time notifications sent for order {order.OrderId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
+        }
+        // =============================================
 
         return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
     }
@@ -352,18 +397,16 @@ public class OrderService : IOrderService
                     DiscountAmount = discountAmount
                 };
 
-                // ========== THÊM CODE NÀY ==========
-                // Cập nhật usedQuantity trong bảng Vouchers
                 var voucher = await _context.Vouchers.FindAsync(voucherResult.Voucher.VoucherId);
                 if (voucher != null)
                 {
                     voucher.UsedQuantity += 1;
                 }
-                // ================================
             }
         }
 
         decimal totalAmount = subtotal + buyNowDto.ShippingFee;
+        // KHÔNG gán FinalAmount - computed property
 
         var order = new Order
         {
@@ -371,6 +414,7 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
+            // FinalAmount KHÔNG gán - computed property
             Status = "pending",
             PaymentMethod = buyNowDto.PaymentMethod,
             DeliveryAddress = buyNowDto.DeliveryAddress,
@@ -380,6 +424,13 @@ public class OrderService : IOrderService
         _context.Orders.Add(order);
         await _context.SaveChangesAsync();
 
+        var customerName = string.Empty;
+        var user = await _context.Users.FindAsync(userId);
+        if (user != null)
+        {
+            customerName = user.FullName;
+        }
+
         var orderItem = new OrderItem
         {
             OrderItemId = await GenerateOrderItemId(),
@@ -387,6 +438,7 @@ public class OrderService : IOrderService
             ProductId = product.ProductId,
             Quantity = buyNowDto.Quantity,
             PriceAtTime = product.Price
+            // Subtotal KHÔNG gán - computed property
         };
         _context.OrderItems.Add(orderItem);
 
@@ -402,7 +454,7 @@ public class OrderService : IOrderService
         {
             PaymentId = await GeneratePaymentId(),
             OrderId = order.OrderId,
-            Amount = subtotal + buyNowDto.ShippingFee - discountAmount,
+            Amount = totalAmount - discountAmount,
             PaymentMethod = buyNowDto.PaymentMethod,
             PaymentStatus = "unpaid"
         };
@@ -410,15 +462,46 @@ public class OrderService : IOrderService
 
         await _context.SaveChangesAsync();
 
+        // ========== GỬI REAL-TIME NOTIFICATION ==========
+        try
+        {
+            await _realTimeService.NotifyNewOrderToAdminsAsync(new NewOrderNotificationDto
+            {
+                OrderId = order.OrderId,
+                OrderCode = order.OrderId,
+                CustomerName = customerName,
+                TotalAmount = order.FinalAmount,
+                CreatedAt = order.CreatedAt
+            });
+
+            await _realTimeService.NotifyUserAsync(
+                userId,
+                "OrderCreated",
+                $"Đơn hàng {order.OrderId} đã được tạo thành công",
+                new { OrderId = order.OrderId, OrderCode = order.OrderId, Status = order.Status }
+            );
+
+            _logger.LogInformation($"Real-time notifications sent for order {order.OrderId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
+        }
+        // =============================================
+
         return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
     }
 
     public async Task<OrderDto> UpdateOrderStatusAsync(string id, UpdateOrderStatusDto updateDto)
     {
-        var order = await _context.Orders.FindAsync(id);
+        var order = await _context.Orders
+            .Include(o => o.User)
+            .FirstOrDefaultAsync(o => o.OrderId == id);
+
         if (order == null)
             throw new Exception("Order not found");
 
+        var oldStatus = order.Status;
         order.Status = updateDto.Status;
 
         var payment = await _context.Payments.FirstOrDefaultAsync(p => p.OrderId == id);
@@ -441,6 +524,25 @@ public class OrderService : IOrderService
 
         await _context.SaveChangesAsync();
 
+        // ========== GỬI REAL-TIME NOTIFICATION ==========
+        try
+        {
+            await _realTimeService.NotifyOrderStatusChangedAsync(
+                order.OrderId,
+                order.UserId,
+                oldStatus,
+                updateDto.Status,
+                order.OrderId
+            );
+
+            _logger.LogInformation($"Real-time status update sent for order {id}: {oldStatus} -> {updateDto.Status}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to send real-time status update for order {id}");
+        }
+        // =============================================
+
         return await GetOrderByIdAsync(id) ?? throw new Exception("Order not found");
     }
 
@@ -448,14 +550,16 @@ public class OrderService : IOrderService
     {
         var order = await _context.Orders
             .Include(o => o.OrderItems)
+            .Include(o => o.User)
             .FirstOrDefaultAsync(o => o.OrderId == id);
 
         if (order == null)
             throw new Exception("Order not found");
 
-        if (order.Status != "pending")
-            throw new Exception("Only pending orders can be cancelled");
+        if (order.Status != "pending" && order.Status != "processing")
+            throw new Exception("Only pending or processing orders can be cancelled");
 
+        var oldStatus = order.Status;
         order.Status = "cancelled";
 
         var payment = await _context.Payments.FirstOrDefaultAsync(p => p.OrderId == id);
@@ -465,6 +569,25 @@ public class OrderService : IOrderService
         }
 
         await _context.SaveChangesAsync();
+
+        // ========== GỬI REAL-TIME NOTIFICATION ==========
+        try
+        {
+            await _realTimeService.NotifyOrderStatusChangedAsync(
+                order.OrderId,
+                order.UserId,
+                oldStatus,
+                "cancelled",
+                order.OrderId
+            );
+
+            _logger.LogInformation($"Real-time cancellation notification sent for order {id}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to send real-time cancellation for order {id}");
+        }
+        // =============================================
 
         return true;
     }

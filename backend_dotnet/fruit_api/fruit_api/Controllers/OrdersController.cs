@@ -12,10 +12,12 @@ namespace fruit_api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
+    private readonly IRealTimeService _realTimeService;
 
-    public OrdersController(IOrderService orderService)
+    public OrdersController(IOrderService orderService, IRealTimeService realTimeService)
     {
         _orderService = orderService;
+        _realTimeService = realTimeService;
     }
 
     private string GetUserId()
@@ -94,7 +96,6 @@ public class OrdersController : ControllerBase
             if (order == null)
                 return NotFound(new { message = "Order not found" });
 
-            // Check if user owns this order or is admin
             var userId = GetUserId();
             var userRole = GetUserRole();
 
@@ -118,10 +119,9 @@ public class OrdersController : ControllerBase
         try
         {
             var userId = GetUserId();
-            // Đảm bảo ShippingFee có giá trị mặc định nếu không được gửi lên
             if (createOrderDto.ShippingFee == 0)
             {
-                createOrderDto.ShippingFee = 25000; // Mặc định 25k
+                createOrderDto.ShippingFee = 25000;
             }
             var order = await _orderService.CreateOrderAsync(userId, createOrderDto);
             return Ok(order);
@@ -141,10 +141,9 @@ public class OrdersController : ControllerBase
         try
         {
             var userId = GetUserId();
-            // Đảm bảo ShippingFee có giá trị mặc định nếu không được gửi lên
             if (buyNowDto.ShippingFee == 0)
             {
-                buyNowDto.ShippingFee = 25000; // Mặc định 25k
+                buyNowDto.ShippingFee = 25000;
             }
             var order = await _orderService.BuyNowAsync(userId, buyNowDto);
             return Ok(order);
@@ -165,11 +164,16 @@ public class OrdersController : ControllerBase
         try
         {
             var order = await _orderService.UpdateOrderStatusAsync(id, updateDto);
-            return Ok(order);
+            return Ok(new
+            {
+                success = true,
+                message = "Cập nhật trạng thái thành công",
+                order
+            });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { success = false, message = ex.Message });
         }
     }
 
@@ -187,7 +191,6 @@ public class OrdersController : ControllerBase
             if (order == null)
                 return NotFound(new { message = "Order not found" });
 
-            // Check if user owns this order
             if (order.UserId != userId)
                 return Forbid();
 
@@ -199,4 +202,34 @@ public class OrdersController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Test real-time notification (chỉ admin)
+    /// </summary>
+    [HttpPost("test-notification")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> TestNotification([FromBody] TestNotificationRequest request)
+    {
+        try
+        {
+            await _realTimeService.NotifyUserAsync(
+                request.UserId,
+                "Test",
+                request.Message ?? "Test notification from server",
+                new { TestData = "Hello from SignalR", Timestamp = DateTime.Now }
+            );
+
+            return Ok(new { success = true, message = "Notification sent successfully" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+}
+
+public class TestNotificationRequest
+{
+    public string UserId { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
 }

@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:provider/provider.dart';
+import '../services/chat_service.dart';
+import '../providers/auth_provider.dart';
+import '../providers/chat_provider.dart';
+import '../models/chat_message.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -11,10 +17,11 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<ChatMessage> _messages = [];
-  bool _isTyping = false;
+  final ChatService _apiService = ChatService();
 
-  // Danh sách câu hỏi gợi ý
+  bool _isTyping = false;
+  bool _isConnected = true;
+
   final List<SuggestionQuestion> _suggestions = [
     SuggestionQuestion(
       icon: Icons.local_offer,
@@ -41,12 +48,36 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    // Thêm tin nhắn chào mừng
-    _messages.add(ChatMessage(
-      text: 'Xin chào! Tôi là trợ lý ảo của FruitStore 🌟\n\nTôi có thể giúp gì cho bạn hôm nay?',
-      isUser: false,
-      time: DateTime.now(),
-    ));
+    _checkConnection();
+    
+    // Tải lịch sử từ SQL khi vào trang
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+      
+      // Chỉ add tin chào mừng nếu chưa có tin nhắn nào
+      if (chatProvider.messages.isEmpty) {
+        chatProvider.addMessage(
+          'Xin chào! Tôi là trợ lý ảo của GreenFruit Market 🌟\n\nTôi có thể giúp gì cho bạn hôm nay?', 
+          false
+        );
+        chatProvider.fetchHistory(authProvider.token);
+      }
+      _scrollToBottom();
+    });
+  }
+
+  Future<void> _checkConnection() async {
+    try {
+      final isConnected = await _apiService.ping();
+      if (mounted) {
+        setState(() => _isConnected = isConnected);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isConnected = false);
+      }
+    }
   }
 
   @override
@@ -56,55 +87,50 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage(String text) {
+  Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final chatProvider = Provider.of<ChatProvider>(context, listen: false);
+    final String? token = authProvider.token;
+
+    // Thêm tin nhắn của User vào Provider
+    chatProvider.addMessage(text, true);
+    _messageController.clear();
+    
     setState(() {
-      _messages.add(ChatMessage(
-        text: text,
-        isUser: true,
-        time: DateTime.now(),
-      ));
       _isTyping = true;
     });
-
+    
     _scrollToBottom();
-    _messageController.clear();
 
-    // Giả lập phản hồi từ AI
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      _simulateAIResponse(text);
-    });
-  }
-
-  void _simulateAIResponse(String userMessage) {
-    setState(() {
-      _isTyping = false;
-      _messages.add(ChatMessage(
-        text: _getAIResponse(userMessage),
-        isUser: false,
-        time: DateTime.now(),
-      ));
-    });
-    _scrollToBottom();
-  }
-
-  String _getAIResponse(String message) {
-    // Đây là logic giả lập, sau này bạn sẽ kết nối với API AI thực tế
-    if (message.contains('đặc biệt') || message.contains('khuyến mãi')) {
-      return '🍎 Hôm nay chúng tôi có chương trình "Mua 1 tặng 1" cho táo New Zealand!\n\n🥭 Cam sành cũng đang giảm 20% cho đơn từ 2kg.\n\nBạn muốn tôi tư vấn thêm về sản phẩm nào không?';
-    } else if (message.contains('yêu thích') || message.contains('ngon')) {
-      return '🔥 Top 3 trái cây bán chạy nhất hôm nay:\n\n1. 🍓 Dâu tây Đà Lạt - 85.000đ/hộp\n2. 🥝 Kiwi xanh New Zealand - 120.000đ/túi\n3. 🥭 Xoài cát Hòa Lộc - 95.000đ/kg\n\nBạn có muốn đặt hàng ngay không?';
-    } else if (message.contains('đơn hàng')) {
-      return '📦 Để kiểm tra đơn hàng, bạn vui lòng cung cấp:\n\n• Số điện thoại đặt hàng\n• Hoặc mã đơn hàng\n\nTôi sẽ tra cứu giúp bạn ngay! 🔍';
-    } else if (message.contains('hỗ trợ')) {
-      return '📞 Tôi kết nối bạn với nhân viên hỗ trợ ngay!\n\nThời gian phản hồi: ~2 phút\nHoặc bạn có thể gọi hotline: 1900.xxxx\n\nBạn cần hỗ trợ vấn đề gì ạ?';
+    try {
+      // Lấy 10 tin nhắn gần nhất để làm context
+      final recentMessages = chatProvider.getRecentMessages(limit: 10);
+      
+      // Gửi lên Backend
+      final response = await _apiService.askAi(text, token, recentMessages);
+      
+      if (mounted) {
+        setState(() => _isTyping = false);
+        if (response != null && response.isNotEmpty) {
+          chatProvider.addMessage(response, false);
+        } else {
+          chatProvider.addMessage('Xin lỗi, tôi không thể trả lời lúc này. Vui lòng thử lại sau! 🙏', false);
+        }
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isTyping = false);
+        chatProvider.addMessage('Lỗi kết nối server: $e', false);
+        _scrollToBottom();
+      }
     }
-    return 'Cảm ơn bạn đã quan tâm! 🌟\n\nTôi có thể giúp bạn:\n• Tư vấn sản phẩm theo mùa\n• Kiểm tra đơn hàng\n• Cập nhật khuyến mãi\n• Hỗ trợ giao hàng\n\nBạn muốn tôi hỗ trợ gì ạ?';
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+    Future.delayed(const Duration(milliseconds: 200), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -117,22 +143,39 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final chatProvider = Provider.of<ChatProvider>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(chatProvider),
       body: Column(
         children: [
-          Expanded(
-            child: _buildMessageList(),
-          ),
-          if (_messages.length == 1) _buildSuggestions(),
+          if (!_isConnected)
+            Container(
+              padding: const EdgeInsets.all(8),
+              color: Colors.red.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.wifi_off, color: Colors.red.shade700, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Mất kết nối server',
+                    style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          if (chatProvider.isLoading)
+            const LinearProgressIndicator(),
+          Expanded(child: _buildMessageList(chatProvider)),
+          if (chatProvider.messages.length <= 1) _buildSuggestions(),
           _buildMessageInput(),
         ],
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(ChatProvider chatProvider) {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.white,
@@ -140,51 +183,36 @@ class _ChatScreenState extends State<ChatScreen> {
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
       ),
-      // ĐÃ XÓA leading (mũi tên quay lại)
       title: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 40, height: 40,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
-              child: Icon(Icons.android, color: Colors.white, size: 24),
-            ),
+            child: const Center(child: Icon(Icons.android, color: Colors.white, size: 24)),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'FruitBot AI',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2C3E50),
-                ),
-              ),
+              const Text('FruitBot AI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C3E50))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.1),
+                  color: _isConnected ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.red.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.circle, size: 6, color: Color(0xFF4CAF50)),
-                    SizedBox(width: 4),
-                    Text(
-                      'Đang hoạt động',
-                      style: TextStyle(fontSize: 10, color: Color(0xFF4CAF50)),
-                    ),
+                    Icon(Icons.circle, size: 6, color: _isConnected ? const Color(0xFF4CAF50) : Colors.red),
+                    const SizedBox(width: 4),
+                    Text(_isConnected ? 'Đang hoạt động' : 'Mất kết nối', style: TextStyle(fontSize: 10, color: _isConnected ? const Color(0xFF4CAF50) : Colors.red)),
                   ],
                 ),
               ),
@@ -196,14 +224,10 @@ class _ChatScreenState extends State<ChatScreen> {
         IconButton(
           icon: const Icon(Icons.refresh, color: Color(0xFF2C3E50)),
           onPressed: () {
-            setState(() {
-              _messages.clear();
-              _messages.add(ChatMessage(
-                text: 'Xin chào! Tôi là trợ lý ảo của FruitStore 🌟\n\nTôi có thể giúp gì cho bạn hôm nay?',
-                isUser: false,
-                time: DateTime.now(),
-              ));
-            });
+            chatProvider.clearMessages();
+            chatProvider.addMessage('Xin chào! Tôi là trợ lý ảo của GreenFruit Market 🌟\n\nTôi có thể giúp gì cho bạn hôm nay?', false);
+            _checkConnection();
+            _scrollToBottom();
           },
         ),
         const SizedBox(width: 8),
@@ -211,77 +235,55 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(ChatProvider chatProvider) {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      itemCount: _messages.length + (_isTyping ? 1 : 0),
+      itemCount: chatProvider.messages.length + (_isTyping ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _messages.length && _isTyping) {
+        if (index == chatProvider.messages.length && _isTyping) {
           return const _TypingIndicator();
         }
-        return _buildMessageBubble(_messages[index]);
+        return _buildMessageBubble(chatProvider.messages[index]);
       },
     );
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
-    
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         child: Column(
           crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: isUser
-                    ? const LinearGradient(
-                        colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
+                gradient: isUser ? const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)]) : null,
                 color: isUser ? null : Colors.white,
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(isUser ? 20 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 20),
+                  topLeft: const Radius.circular(20), topRight: const Radius.circular(20),
+                  bottomLeft: Radius.circular(isUser ? 20 : 4), bottomRight: Radius.circular(isUser ? 4 : 20),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
               ),
-              child: Text(
-                message.text,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.4,
-                  color: isUser ? Colors.white : const Color(0xFF2C3E50),
-                ),
-              ),
+              child: isUser
+                  ? Text(message.text, style: const TextStyle(fontSize: 15, height: 1.4, color: Colors.white))
+                  : MarkdownBody(
+                      data: message.text,
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(fontSize: 15, height: 1.4, color: Color(0xFF2C3E50)),
+                        a: const TextStyle(color: Color(0xFF4CAF50), decoration: TextDecoration.underline),
+                      ),
+                    ),
             ),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                _formatTime(message.time),
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[500],
-                ),
-              ),
+              child: Text(_formatTime(message.time), style: TextStyle(fontSize: 10, color: Colors.grey[500])),
             ),
           ],
         ),
@@ -297,14 +299,7 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 8, bottom: 12),
-            child: Text(
-              '✨ Câu hỏi gợi ý',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            child: Text('✨ Câu hỏi gợi ý', style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500)),
           ),
           SizedBox(
             height: 100,
@@ -314,12 +309,9 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (context, index) {
                 final suggestion = _suggestions[index];
                 return Container(
-                  width: 140,
-                  margin: const EdgeInsets.only(right: 12),
+                  width: 140, margin: const EdgeInsets.only(right: 12),
                   child: Material(
-                    elevation: 0,
-                    borderRadius: BorderRadius.circular(16),
-                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16), color: Colors.white,
                     child: InkWell(
                       onTap: () => _sendMessage(suggestion.question),
                       borderRadius: BorderRadius.circular(16),
@@ -328,21 +320,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              suggestion.icon,
-                              color: const Color(0xFF4CAF50),
-                              size: 28,
-                            ),
+                            Icon(suggestion.icon, color: const Color(0xFF4CAF50), size: 28),
                             const SizedBox(height: 8),
-                            Text(
-                              suggestion.title,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF2C3E50),
-                              ),
-                            ),
+                            Text(suggestion.title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF2C3E50))),
                           ],
                         ),
                       ),
@@ -360,37 +340,16 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildMessageInput() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))]),
       child: Row(
         children: [
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FA),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: Colors.grey[300]!,
-                  width: 1,
-                ),
-              ),
+              decoration: BoxDecoration(color: const Color(0xFFF8F9FA), borderRadius: BorderRadius.circular(30), border: Border.all(color: Colors.grey[300]!, width: 1)),
               child: TextField(
                 controller: _messageController,
-                decoration: const InputDecoration(
-                  hintText: 'Nhập tin nhắn...',
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
-                ),
+                decoration: const InputDecoration(hintText: 'Nhập tin nhắn...', hintStyle: TextStyle(color: Colors.grey, fontSize: 14), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 12)),
                 maxLines: null,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(_messageController.text),
@@ -399,12 +358,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           const SizedBox(width: 12),
           Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)],
-              ),
-              borderRadius: BorderRadius.circular(30),
-            ),
+            decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF66BB6A)]), borderRadius: BorderRadius.circular(30)),
             child: IconButton(
               onPressed: () => _sendMessage(_messageController.text),
               icon: const Icon(Icons.send, color: Colors.white, size: 20),
@@ -424,23 +378,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class ChatMessage {
-  final String text;
-  final bool isUser;
-  final DateTime time;
-
-  ChatMessage({
-    required this.text,
-    required this.isUser,
-    required this.time,
-  });
-}
-
 class SuggestionQuestion {
   final IconData icon;
   final String title;
   final String question;
-
+  
   SuggestionQuestion({
     required this.icon,
     required this.title,
@@ -461,43 +403,16 @@ class _TypingIndicator extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4CAF50),
-                shape: BoxShape.circle,
-              ),
-            ),
+            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle)),
             const SizedBox(width: 4),
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4CAF50),
-                shape: BoxShape.circle,
-              ),
-            ),
+            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle)),
             const SizedBox(width: 4),
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4CAF50),
-                shape: BoxShape.circle,
-              ),
-            ),
+            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Color(0xFF4CAF50), shape: BoxShape.circle)),
           ],
         ),
       ),

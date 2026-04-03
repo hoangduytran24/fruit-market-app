@@ -21,26 +21,24 @@ class OrderProvider extends ChangeNotifier {
   bool get isFetching => _isFetching;
   bool get hasOrders => _orders.isNotEmpty;
   
-  // Lấy danh sách đơn hàng
+  // --- Lấy danh sách đơn hàng (Đã sửa lỗi fix cứng dữ liệu) ---
   Future<bool> fetchMyOrders({bool forceRefresh = false}) async {
-    if (_isFetching) {
-      print('⏳ Đang fetch orders, bỏ qua request');
-      return false;
-    }
+    if (_isFetching) return false;
     
+    // Chỉ chặn nếu đã có dữ liệu và không yêu cầu làm mới
     if (_hasLoaded && !forceRefresh && _orders.isNotEmpty) {
-      print('✅ Đã load orders trước đó, bỏ qua fetch');
       return true;
     }
 
     _isFetching = true;
-    _setLoading(true);
+    if (_orders.isEmpty || forceRefresh) _setLoading(true);
     _clearError();
     
     try {
-      _orders = await _orderService.getUserOrders();
+      final updatedOrders = await _orderService.getUserOrders();
+      _orders = List.from(updatedOrders); 
       _hasLoaded = true;
-      _setLoading(false);
+      notifyListeners();
       return true;
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
@@ -55,48 +53,20 @@ class OrderProvider extends ChangeNotifier {
   Future<Order?> fetchOrderDetail(String orderId) async {
     _setLoading(true);
     _clearError();
-    
     try {
       _currentOrder = await _orderService.getOrderById(orderId);
-      _setLoading(false);
+      notifyListeners();
       return _currentOrder;
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
       return null;
+    } finally {
+      _setLoading(false);
     }
   }
-  
-  // Đảm bảo orders đã được load
-  Future<void> ensureOrdersLoaded() async {
-    if (_hasLoaded && _orders.isNotEmpty) {
-      print('✅ Orders đã được load trước đó');
-      return;
-    }
-    
-    if (_isFetching || _isLoading) {
-      print('⏳ Orders đang được load, chờ...');
-      while (_isFetching || _isLoading) {
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      return;
-    }
-    
-    await fetchMyOrders();
-  }
-  
-  // Load orders silently (không set loading state)
-  Future<void> loadOrdersSilently() async {
-    if (_hasLoaded) return;
-    
-    try {
-      _orders = await _orderService.getUserOrders();
-      _hasLoaded = true;
-      notifyListeners();
-    } catch (e) {
-      print('❌ Load orders silently error: $e');
-    }
-  }
-  
+
+  // --- CÁC HÀM QUAN TRỌNG CHO CHECKOUT (ĐÃ THÊM LẠI) ---
+
   // Mua ngay
   Future<Order?> buyNow({
     required String productId,
@@ -108,7 +78,6 @@ class OrderProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
     _clearError();
-    
     try {
       final order = await _orderService.buyNow(
         productId: productId,
@@ -118,18 +87,17 @@ class OrderProvider extends ChangeNotifier {
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
-      
-      // SỬA: bỏ if (order != null) vì order không thể null ở đây (nếu lỗi sẽ throw exception)
+      // Sau khi mua thành công, xóa trạng thái cũ để màn hình đơn hàng load lại bản mới nhất
       await fetchMyOrders(forceRefresh: true);
-      
-      _setLoading(false);
       return order;
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
       return null;
+    } finally {
+      _setLoading(false);
     }
   }
-  
+
   // Tạo đơn từ giỏ hàng
   Future<Order?> createOrderFromCart({
     required String deliveryAddress,
@@ -139,7 +107,6 @@ class OrderProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
     _clearError();
-    
     try {
       final order = await _orderService.createOrderFromCart(
         deliveryAddress: deliveryAddress,
@@ -147,26 +114,23 @@ class OrderProvider extends ChangeNotifier {
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
-      
-      // SỬA: bỏ if (order != null)
+      // Ép buộc cập nhật lại danh sách đơn hàng
       await fetchMyOrders(forceRefresh: true);
-      
-      _setLoading(false);
       return order;
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
       return null;
+    } finally {
+      _setLoading(false);
     }
   }
-  
+
   // Hủy đơn hàng
   Future<bool> cancelOrder(String orderId) async {
     _setLoading(true);
     _clearError();
-    
     try {
       final success = await _orderService.cancelOrder(orderId);
-      _setLoading(false);
       if (success) {
         await fetchMyOrders(forceRefresh: true);
       }
@@ -174,36 +138,12 @@ class OrderProvider extends ChangeNotifier {
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
-  
-  // Làm mới dữ liệu (force refresh)
-  Future<bool> refreshOrders() async {
-    return await fetchMyOrders(forceRefresh: true);
-  }
-  
-  // Lấy đơn hàng theo trạng thái
-  List<Order> getOrdersByStatus(String status) {
-    if (status == 'all') return _orders;
-    return _orders.where((order) => order.status == status).toList();
-  }
-  
-  // Thống kê số lượng đơn hàng theo trạng thái
-  Map<String, int> getOrderStatistics() {
-    return {
-      'pending': _orders.where((o) => o.status == 'pending').length,
-      'shipping': _orders.where((o) => o.status == 'shipping').length,
-      'delivered': _orders.where((o) => o.status == 'delivered').length,
-      'cancelled': _orders.where((o) => o.status == 'cancelled').length,
-      'total': _orders.length,
-    };
-  }
-  
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
-  
+
+  // Các phương thức khác
   void reset() {
     _orders = [];
     _currentOrder = null;
@@ -221,7 +161,6 @@ class OrderProvider extends ChangeNotifier {
   
   void _setError(String message) {
     _error = message;
-    _isLoading = false;
     notifyListeners();
   }
   

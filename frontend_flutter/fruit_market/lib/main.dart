@@ -10,6 +10,8 @@ import 'providers/voucher_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/payment_provider.dart';
 import 'providers/category_provider.dart';
+import 'providers/real_time_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -20,19 +22,15 @@ import 'screens/account_screen.dart';
 import 'screens/orders_screen.dart';
 import 'screens/vouchers_screen.dart';
 import 'screens/product_detail_screen.dart';
+import 'screens/notification_handler.dart';
 import 'models/product.dart';
 
 void main() {
-  // Bỏ qua SSL certificate cho môi trường development
   HttpOverrides.global = MyHttpOverrides();
-  
-  // Đợi widget binding khởi tạo
   WidgetsFlutterBinding.ensureInitialized();
-  
   runApp(const MyApp());
 }
 
-// Class để bỏ qua kiểm tra SSL certificate
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -57,6 +55,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => VoucherProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => PaymentProvider()),
+        ChangeNotifierProvider(create: (_) => RealTimeProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: MaterialApp(
         title: 'GreenFruit Market',
@@ -73,7 +73,6 @@ class MyApp extends StatelessWidget {
           ),
           scaffoldBackgroundColor: const Color(0xFFF8F9FA),
         ),
-        // Khai báo tất cả các routes
         initialRoute: '/',
         routes: {
           '/': (context) => const SplashScreen(),
@@ -85,9 +84,9 @@ class MyApp extends StatelessWidget {
           '/account': (context) => const AccountScreen(),
           '/orders': (context) => const OrdersScreen(),
           '/vouchers': (context) => const VouchersScreen(),
+          '/notifications': (context) => const NotificationHandler(child: HomeScreen()),
         },
         onGenerateRoute: (settings) {
-          // Xử lý route động cho product detail
           if (settings.name == '/product-detail') {
             final product = settings.arguments as Product;
             return MaterialPageRoute(
@@ -96,7 +95,6 @@ class MyApp extends StatelessWidget {
           }
           return null;
         },
-        // THÊM: Xử lý lỗi route không tìm thấy
         onUnknownRoute: (settings) {
           return MaterialPageRoute(
             builder: (context) => const HomeScreen(),

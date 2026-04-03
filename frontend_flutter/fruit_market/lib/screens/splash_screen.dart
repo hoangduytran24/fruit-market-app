@@ -53,15 +53,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     });
   }
 
+  // SỬA ĐỔI CHÍNH: Đảm bảo fetch dữ liệu mới nhất
   Future<void> _loadInitialData() async {
     if (_isDataLoaded) return;
     
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      
+      // Bước 1: Kiểm tra đăng nhập trước
+      await authProvider.checkLoginStatus();
+
+      // Bước 2: Load song song toàn bộ dữ liệu (Ép buộc gọi API mới)
       await Future.wait([
-        _loadUserData(),
-        _loadProducts(),
-        _loadCategories(),
-        _loadVouchers(),
+        Provider.of<ProductProvider>(context, listen: false).loadProducts(), // Đảm bảo hàm này gọi API
+        Provider.of<CategoryProvider>(context, listen: false).fetchCategories(),
+        Provider.of<VoucherProvider>(context, listen: false).loadAvailableVouchers(),
+        
+        // Nếu user đã login, load thêm giỏ hàng và voucher cá nhân
+        if (authProvider.isAuthenticated) ...[
+          Provider.of<CartProvider>(context, listen: false).loadCart(),
+          Provider.of<VoucherProvider>(context, listen: false).loadSavedVouchers(),
+        ]
       ]);
       
       _isDataLoaded = true;
@@ -71,6 +83,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           _isLoading = false;
         });
         
+        // Giữ lại 1s để hiệu ứng mượt mà như bản cũ
         await Future.delayed(const Duration(seconds: 1));
         
         if (mounted) {
@@ -84,56 +97,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _error = e.toString();
+          _error = "Lỗi cập nhật dữ liệu: Vui lòng kiểm tra kết nối mạng.";
         });
       }
-    }
-  }
-
-  Future<void> _loadUserData() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
-    if (!authProvider.hasLoaded) {
-      await authProvider.checkLoginStatus();
-    }
-    
-    if (authProvider.isAuthenticated) {
-      final cartProvider = Provider.of<CartProvider>(context, listen: false);
-      if (!cartProvider.hasLoaded) {
-        await cartProvider.loadCart();
-      }
-    }
-  }
-
-  Future<void> _loadProducts() async {
-    final productProvider = Provider.of<ProductProvider>(context, listen: false);
-    
-    if (!productProvider.hasLoaded) {
-      await productProvider.loadProducts();
-    }
-  }
-
-  Future<void> _loadCategories() async {
-    final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
-    
-    if (!categoryProvider.hasLoaded) {
-      await categoryProvider.fetchCategories();
-    }
-  }
-
-
-  Future<void> _loadVouchers() async {
-    final voucherProvider = Provider.of<VoucherProvider>(context, listen: false);
-    
-
-    if (!voucherProvider.hasLoadedAvailable) {
-      await voucherProvider.loadAvailableVouchers();
-    }
-    
-   
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.isAuthenticated && !voucherProvider.hasLoadedSaved) {
-      await voucherProvider.loadSavedVouchers();
     }
   }
 
@@ -145,6 +111,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    // GIỮ NGUYÊN UI GỐC 100%
     return Scaffold(
       backgroundColor: const Color(0xFF0B2A1F),
       body: Stack(
@@ -159,7 +126,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
-                if (_isLoading) {
+                // Chỉ áp dụng hiệu ứng Scale/Fade khi đang load hoặc mới bắt đầu
+                if (_isLoading || _animationController.value < 1.0) {
                   return Opacity(
                     opacity: _fadeAnimation.value,
                     child: Transform.scale(
@@ -175,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.error_outline,
+                          Icons.wifi_off_rounded,
                           color: Colors.red[300],
                           size: 40,
                         ),
@@ -209,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo
+                        // Logo Container
                         Container(
                           width: 100,
                           height: 100,
@@ -231,12 +199,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF7CB342),
-                                        Color(0xFF4CAF50),
-                                      ],
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Color(0xFF7CB342), Color(0xFF4CAF50)],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
@@ -257,9 +222,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Column(
+                        const Column(
                           children: [
-                            const Text(
+                            Text(
                               'GreenFruit',
                               style: TextStyle(
                                 color: Colors.white,
@@ -268,7 +233,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                                 letterSpacing: 1.5,
                               ),
                             ),
-                            const Text(
+                            Text(
                               'MARKET',
                               style: TextStyle(
                                 color: Color(0xFF7CB342),
@@ -279,7 +244,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             ),
                           ],
                         ),
-                        const SizedBox(height: 40),
                         const SizedBox(height: 60),
                         const Text(
                           'Sản phẩm tươi sạch cho gia đình bạn',
@@ -296,14 +260,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             ),
           ),
           
-          // Version ở góc dưới
           Positioned(
             bottom: 20,
             left: 0,
             right: 0,
             child: Center(
               child: Text(
-                'Version 1.0.0',
+                'Version 1.1.0',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.3),
                   fontSize: 12,
@@ -317,7 +280,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   }
 }
 
-// Custom painter để vẽ pattern nền
 class _SplashPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
