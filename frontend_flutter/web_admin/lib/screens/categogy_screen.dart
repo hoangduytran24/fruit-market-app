@@ -25,7 +25,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Uint8List? _webImage;
   bool _isSubmitting = false;
 
-  // Palette màu thương hiệu GreenFruit
   static const Color primaryGreen = Color(0xFF1A5F3A);
   static const Color bgGrey = Color(0xFFF4F7F5);
 
@@ -74,7 +73,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  // --- TOOLBAR ---
   Widget _buildToolBar(bool isMobile) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -83,32 +81,34 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: isMobile ? 180 : 350,
-            height: 42,
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Tìm kiếm danh mục...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        })
-                    : null,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: EdgeInsets.zero,
+          Expanded(
+            child: Container(
+              height: 42,
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Tìm kiếm danh mục...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          })
+                      : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 12),
           ElevatedButton.icon(
             onPressed: _openAddDialog,
             icon: const Icon(Icons.add, color: Colors.white, size: 18),
@@ -116,6 +116,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryGreen,
               foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
@@ -124,7 +125,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  // --- GRID & CARD ---
   Widget _buildCategoryGrid(List<CategoryModel> categories, bool isMobile) {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
@@ -132,14 +132,14 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         crossAxisCount: isMobile ? 1 : (context.isTablet ? 2 : 4),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        mainAxisExtent: 110,
+        mainAxisExtent: 110, // Giữ nguyên kích thước card
       ),
       itemCount: categories.length,
-      itemBuilder: (context, index) => _buildCategoryCard(categories[index]),
+      itemBuilder: (context, index) => _buildCategoryCard(categories[index], isMobile),
     );
   }
 
-  Widget _buildCategoryCard(CategoryModel category) {
+  Widget _buildCategoryCard(CategoryModel category, bool isMobile) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -162,18 +162,44 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(category.categoryName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    category.categoryName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   const SizedBox(height: 4),
-                  Text('${category.productCount} sản phẩm', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+                  Text(
+                    '${category.productCount} sản phẩm',
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  ),
                 ],
               ),
             ),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 20), onPressed: () => _openEditDialog(category)),
-                IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), onPressed: () => _deleteCategory(category)),
-              ],
+            // Tối ưu phần hành động để tránh tràn trên mobile
+            SizedBox(
+              width: isMobile ? 40 : 50, // Giới hạn chiều rộng khu vực nút
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: IconButton(
+                      icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 18),
+                      onPressed: () => _openEditDialog(category),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ),
+                  Expanded(
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                      onPressed: () => _deleteCategory(category),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ),
+                ],
+              ),
             )
           ],
         ),
@@ -181,16 +207,20 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  // --- MODERN DIALOG THEO PHONG CÁCH SUPPLIER ---
+  // --- MODERN DIALOG (Giữ nguyên logic cũ) ---
   void _showFormDialog({required bool isEdit, CategoryModel? category}) {
+    // Để tương thích tốt hơn trên Mobile, dùng width dựa trên màn hình
+    double dialogWidth = context.isMobile ? MediaQuery.of(context).size.width * 0.9 : 500;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) => Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
           child: Container(
-            width: 500,
+            width: dialogWidth,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: bgGrey, borderRadius: BorderRadius.circular(28)),
             child: Column(
@@ -243,13 +273,24 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     return Row(
       children: [
         CircleAvatar(
+          radius: 18,
           backgroundColor: primaryGreen.withOpacity(0.1),
-          child: Icon(isEdit ? Icons.edit : Icons.add_photo_alternate_outlined, color: primaryGreen),
+          child: Icon(isEdit ? Icons.edit : Icons.add_photo_alternate_outlined, color: primaryGreen, size: 18),
         ),
         const SizedBox(width: 12),
-        Text(isEdit ? "Cập nhật danh mục" : "Thêm danh mục mới", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const Spacer(),
-        IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+        Expanded(
+          child: Text(
+            isEdit ? "Cập nhật danh mục" : "Thêm danh mục mới",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close, size: 20),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
       ],
     );
   }
@@ -257,7 +298,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(title.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.5)),
+      child: Text(title.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 0.5)),
     );
   }
 
@@ -278,8 +319,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         child: GestureDetector(
           onTap: () => _pickImage(setStateDialog),
           child: Container(
-            width: 120,
-            height: 120,
+            width: 100,
+            height: 100,
             decoration: BoxDecoration(
               color: bgGrey,
               borderRadius: BorderRadius.circular(16),
@@ -295,7 +336,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                           ? ImageUtils.networkImage(category!.imageUrl)
                           : const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: [Icon(Icons.add_a_photo, color: primaryGreen, size: 30), SizedBox(height: 4), Text("Chọn ảnh", style: TextStyle(fontSize: 12, color: primaryGreen))],
+                              children: [Icon(Icons.add_a_photo, color: primaryGreen, size: 24), SizedBox(height: 4), Text("Chọn ảnh", style: TextStyle(fontSize: 10, color: primaryGreen))],
                             ),
             ),
           ),
@@ -327,8 +368,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         Expanded(
           child: OutlinedButton(
             onPressed: () => Navigator.pop(context),
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text("Hủy bỏ"),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 45), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text("Hủy bỏ", style: TextStyle(fontSize: 13)),
           ),
         ),
         const SizedBox(width: 12),
@@ -339,20 +380,20 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryGreen,
               foregroundColor: Colors.white,
-              minimumSize: const Size(0, 48),
+              minimumSize: const Size(0, 45),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
             child: _isSubmitting
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Text(isEdit ? "Cập nhật" : "Tạo danh mục", style: const TextStyle(fontWeight: FontWeight.bold)),
+                : Text(isEdit ? "Cập nhật" : "Tạo danh mục", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
         ),
       ],
     );
   }
 
-  // --- LOGIC XỬ LÝ ---
+  // --- LOGIC XỬ LÝ (Giữ nguyên) ---
   Future<void> _handleSave(bool isEdit, String? id, StateSetter setStateDialog) async {
     if (!_formKey.currentState!.validate()) return;
     setStateDialog(() => _isSubmitting = true);

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -97,19 +97,19 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            throw new Exception("Invalid username or password");
+            throw new Exception("Sai tên đăng nhập hoặc mật khẩu");
         }
 
         // Check password
         if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
         {
-            throw new Exception("Invalid username or password");
+            throw new Exception("Sai tên đăng nhập hoặc mật khẩu");
         }
 
         // Check status
         if (user.Status != "active")
         {
-            throw new Exception("Account is not active");
+            throw new Exception("Tài khoản của bạn đã bị khóa");
         }
 
         // Generate token
@@ -180,5 +180,26 @@ public class AuthService : IAuthService
         }
 
         return "US" + nextNumber.ToString("D4");
+    }
+
+    public async Task<AuthResponseDto> GetUserByIdAsync(string userId)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user == null)
+        {
+            throw new Exception("User not found");
+        }
+
+        return new AuthResponseDto
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            Email = user.Email,
+            Phone = user.Phone,
+            Role = user.Role,
+            Token = null  // Không cần trả token mới
+        };
     }
 }

@@ -43,8 +43,10 @@ class OrderService {
     required int quantity,
     required String paymentMethod,
     required String deliveryAddress,
+    required String receiverName,      // Thêm
+    required String receiverPhone,     // Thêm
     String? voucherCode,
-    double shippingFee = 25000, // ✅ Thêm tham số
+    double shippingFee = 25000,
   }) async {
     try {
       final response = await ApiService.post(
@@ -54,8 +56,10 @@ class OrderService {
           'quantity': quantity,
           'paymentMethod': paymentMethod,
           'deliveryAddress': deliveryAddress,
+          'receiverName': receiverName,      // Thêm
+          'receiverPhone': receiverPhone,    // Thêm
           'voucherCode': voucherCode,
-          'shippingFee': shippingFee, // ✅ Thêm dòng này
+          'shippingFee': shippingFee,
         },
       );
       
@@ -76,8 +80,10 @@ class OrderService {
   Future<Order> createOrderFromCart({
     required String deliveryAddress,
     required String paymentMethod,
+    required String receiverName,      // Thêm
+    required String receiverPhone,     // Thêm
     String? voucherCode,
-    double shippingFee = 25000, // ✅ Thêm tham số
+    double shippingFee = 25000,
   }) async {
     try {
       final response = await ApiService.post(
@@ -85,8 +91,10 @@ class OrderService {
         body: {
           'deliveryAddress': deliveryAddress,
           'paymentMethod': paymentMethod,
+          'receiverName': receiverName,      // Thêm
+          'receiverPhone': receiverPhone,    // Thêm
           'voucherCode': voucherCode,
-          'shippingFee': shippingFee, // ✅ Thêm dòng này
+          'shippingFee': shippingFee,
         },
       );
       

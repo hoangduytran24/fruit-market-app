@@ -8,14 +8,14 @@ namespace fruit_api.DTOs.Statistics;
 
 public class DashboardStatisticsDto
 {
-    public int TotalOrders { get; set; }           // Tổng đơn hàng
-    public int TotalUsers { get; set; }             // Tổng người dùng
-    public int TotalProducts { get; set; }          // Tổng sản phẩm
-    public decimal TotalRevenue { get; set; }       // Tổng doanh thu
-    public decimal TodayRevenue { get; set; }       // Doanh thu hôm nay
-    public int TodayOrders { get; set; }            // Đơn hàng hôm nay
-    public int PendingOrders { get; set; }          // Đơn chờ duyệt
-    public int LowStockProducts { get; set; }       // Sản phẩm sắp hết hàng
+    public int TotalOrders { get; set; }
+    public int TotalUsers { get; set; }
+    public int TotalProducts { get; set; }
+    public decimal TotalRevenue { get; set; }
+    public decimal TodayRevenue { get; set; }
+    public int TodayOrders { get; set; }
+    public int PendingOrders { get; set; }
+    public int LowStockProducts { get; set; }
 }
 
 // ===============================

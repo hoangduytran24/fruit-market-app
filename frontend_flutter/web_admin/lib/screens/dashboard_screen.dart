@@ -22,6 +22,7 @@ class DashboardTheme {
   static const Color info = Color(0xFF0288D1);
   static const Color warning = Color(0xFFFFA000);
   static const Color danger = Color(0xFFD32F2F);
+  static const Color accent = Color(0xFF8E24AA);
   static const Color background = Color(0xFFF1F5F9);
   static const Color textMain = Color(0xFF1E293B);
   static const Color textSub = Color(0xFF64748B);
@@ -75,7 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: DashboardTheme.background,
-      // Thêm Drawer cho Mobile
       drawer: isMobile
           ? Drawer(
               child: AdminSidebar(
@@ -84,14 +84,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 menuItems: _menuItems,
                 onItemSelected: (index) {
                   setState(() => _selectedIndex = index);
-                  Navigator.pop(context); // Đóng drawer sau khi chọn
+                  Navigator.pop(context);
                 },
-                onToggleCollapse: () {}, // Không cần thiết trên mobile drawer
+                onToggleCollapse: () {},
               ),
             )
           : null,
       body: Responsive(
-        // Giao diện Mobile: Thêm AppBar có nút menu (3 gạch)
         mobile: Column(
           children: [
             AppBar(
@@ -106,7 +105,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(child: screens[_selectedIndex]),
           ],
         ),
-        // Giao diện Desktop: Giữ nguyên sidebar cố định
         desktop: Row(
           children: [
             AdminSidebar(
@@ -170,6 +168,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               children: [
                 _buildHeader(),
                 const SizedBox(height: 24),
+                // Phần thống kê 5 ô
                 _buildStatCards(constraints.maxWidth, stats),
                 const SizedBox(height: 24),
                 _buildMainChartsRow(constraints.maxWidth, provider),
@@ -199,15 +198,20 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
   Widget _buildStatCards(double maxWidth, DashboardStats? stats) {
     final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
-    int crossAxisCount = maxWidth > 1100 ? 4 : (maxWidth > 600 ? 2 : 1);
+
+    // Nếu là Mobile thì chia 1 hoặc 2 cột, nếu Tablet/Desktop thì ép 5 cột
+    int crossAxisCount = maxWidth < 600 ? 1 : (maxWidth < 1100 ? 2 : 5);
+    
+    // Điều chỉnh tỉ lệ để các ô không bị quá dài khi chia 5
+    double childAspectRatio = maxWidth > 1100 ? 1.6 : 2.2;
 
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: crossAxisCount,
-      crossAxisSpacing: 20,
-      mainAxisSpacing: 20,
-      childAspectRatio: maxWidth > 1200 ? 2.2 : 1.8,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: childAspectRatio,
       children: [
         _ModernStatCard(
           title: 'TỔNG DOANH THU',
@@ -228,10 +232,16 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           color: DashboardTheme.info,
         ),
         _ModernStatCard(
-          title: 'HÀNG SẮP HẾT',
-          value: '${stats?.lowStockProducts ?? 0}',
+          title: 'ĐƠN HÀNG CHỜ DUYỆT',
+          value: '${stats?.pendingOrders ?? 0}',
           icon: Icons.warning_amber_rounded,
           color: DashboardTheme.warning,
+        ),
+        _ModernStatCard(
+          title: 'TỔNG NGƯỜI DÙNG',
+          value: '${stats?.totalUsers ?? 0}',
+          icon: Icons.people_alt_rounded,
+          color: DashboardTheme.accent,
         ),
       ],
     );
@@ -305,28 +315,50 @@ class _ModernStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: DashboardTheme.getGradient(color),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white, size: 28),
+          Icon(icon, color: Colors.white, size: 24),
           const Spacer(),
-          Text(value, 
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-          Text(title, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.9), fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 9,
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
+// Các widget biểu đồ giữ nguyên logic của bạn...
 class _ChartContainer extends StatelessWidget {
   final String title, subtitle;
   final Widget child;

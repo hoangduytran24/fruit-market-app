@@ -257,7 +257,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: Colors.black.withAlpha(13),
                           blurRadius: 10,
                         ),
                       ],
@@ -271,7 +271,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               width: 50,
                               height: 50,
                               decoration: BoxDecoration(
-                                color: _getOrderStatusColor(order.status).withValues(alpha: 0.1),
+                                color: _getOrderStatusColor(order.status).withAlpha(26),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -324,7 +324,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               width: 50,
                               height: 50,
                               decoration: BoxDecoration(
-                                color: _getPaymentStatusColor(order.paymentStatus).withValues(alpha: 0.1),
+                                color: _getPaymentStatusColor(order.paymentStatus).withAlpha(26),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -365,7 +365,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Thông tin người nhận
+                  // ========== THÔNG TIN NGƯỜI NHẬN (LẤY TỪ RECEIVER) ==========
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -373,7 +373,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: Colors.black.withAlpha(13),
                           blurRadius: 10,
                         ),
                       ],
@@ -386,7 +386,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1B5E20).withValues(alpha: 0.1),
+                                color: const Color(0xFF1B5E20).withAlpha(26),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
@@ -408,12 +408,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         const SizedBox(height: 16),
                         _buildInfoRow(
                           label: 'Họ tên',
-                          value: order.customerName.isNotEmpty ? order.customerName : 'Chưa cập nhật',
+                          value: order.receiverName.isNotEmpty ? order.receiverName : 'Chưa cập nhật',
                         ),
                         const SizedBox(height: 12),
                         _buildInfoRow(
                           label: 'Số điện thoại',
-                          value: order.customerPhone?.isNotEmpty == true ? order.customerPhone! : 'Chưa cập nhật',
+                          value: order.receiverPhone.isNotEmpty ? order.receiverPhone : 'Chưa cập nhật',
                         ),
                         const SizedBox(height: 12),
                         _buildInfoRow(
@@ -423,6 +423,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ],
                     ),
                   ),
+                  // ===========================================================
 
                   const SizedBox(height: 16),
 
@@ -434,7 +435,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: Colors.black.withAlpha(13),
                           blurRadius: 10,
                         ),
                       ],
@@ -447,7 +448,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1B5E20).withValues(alpha: 0.1),
+                                color: const Color(0xFF1B5E20).withAlpha(26),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(
@@ -512,7 +513,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               ),
                             ),
                             Text(
-                              _formatCurrency(order.finalAmount+ 25000), // Cộng thêm phí ship vào tổng cộng
+                              _formatCurrency(order.finalAmount + _shippingFee),
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -529,7 +530,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                              color: const Color(0xFFFF6B6B).withAlpha(26),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
@@ -567,7 +568,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: Colors.black.withAlpha(13),
                           blurRadius: 10,
                         ),
                       ],
@@ -580,7 +581,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1B5E20).withValues(alpha: 0.1),
+                                color: const Color(0xFF1B5E20).withAlpha(26),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: const Icon(

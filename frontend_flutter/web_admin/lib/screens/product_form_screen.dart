@@ -98,8 +98,46 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     }
   }
 
+  // Hàm hiển thị Dialog cảnh báo
+  void _showIncompleteDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text("Thông tin chưa đủ"),
+          ],
+        ),
+        content: const Text("Bạn cần nhập đầy đủ thông tin kể cả ảnh thì mới thêm, sửa được."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Đã hiểu", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveProduct() async {
-    if (!_formKey.currentState!.validate()) return;
+    // 1. Kiểm tra Validate Form (Text fields, Dropdowns)
+    final isValid = _formKey.currentState!.validate();
+    
+    // 2. Kiểm tra Hình ảnh (Nếu là thêm mới thì bắt buộc, nếu sửa thì có thể dùng ảnh cũ)
+    bool hasImage = false;
+    if (kIsWeb) {
+      hasImage = _webImage != null || (widget.product?.imageUrl != null);
+    } else {
+      hasImage = _selectedImageFile != null || (widget.product?.imageUrl != null);
+    }
+
+    if (!isValid || !hasImage) {
+      _showIncompleteDialog();
+      return;
+    }
 
     setState(() => _isLoading = true);
     final productProvider = Provider.of<ProductProvider>(context, listen: false);
@@ -235,7 +273,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                                 hint: "1kg, gói 100g...",
                                 validator: (v) {
                                   if (v == null || v.isEmpty) return "Nhập đơn vị";
-                                  // Chấp nhận chữ, số và khoảng trắng (Ví dụ: "Gói 500g")
                                   if (!RegExp(r'^[\wÀ-ỹ0-9\s]{1,50}$', unicode: true).hasMatch(v)) {
                                     return "1-50 ký tự";
                                   }

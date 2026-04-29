@@ -1,5 +1,5 @@
 import 'package:signalr_netcore/signalr_client.dart';
-import 'package:flutter/foundation.dart';
+// import 'package:flutter/foundation.dart';
 import '../models/real_time_update.dart';
 
 class SignalRService {

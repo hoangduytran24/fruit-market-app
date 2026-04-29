@@ -17,11 +17,14 @@ class ProductsScreen extends StatefulWidget {
 class _ProductsScreenState extends State<ProductsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
+@override
+void initState() {
+  super.initState();
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
-  }
+  });
+}
 
   @override
   void dispose() {
@@ -252,13 +255,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
       ),
       child: Row(
         children: const [
-          Expanded(flex: 3, child: Text('Sản phẩm', style: headerStyle)),
+          Expanded(flex: 2, child: Text('Sản phẩm', style: headerStyle)),
           Expanded(flex: 1, child: Center(child: Text('Ảnh', style: headerStyle))),
           Expanded(flex: 2, child: Center(child: Text('Danh mục', style: headerStyle))),
           Expanded(flex: 2, child: Text('Giá bán', style: headerStyle, textAlign: TextAlign.right)),
           Expanded(flex: 1, child: Center(child: Text('Kho', style: headerStyle))),
           Expanded(flex: 2, child: Center(child: Text('Trạng thái', style: headerStyle))),
-          Expanded(flex: 2, child: Center(child: Text('Hành động', style: headerStyle))),
+          Expanded(flex: 3, child: Center(child: Text('Hành động', style: headerStyle))),
         ],
       ),
     );
@@ -271,7 +274,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade50))),
       child: Row(
         children: [
-          Expanded(flex: 3, child: Text(product.productName, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(flex: 2, child: Text(product.productName, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
           Expanded(
             flex: 1,
             child: Center(
@@ -303,7 +306,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

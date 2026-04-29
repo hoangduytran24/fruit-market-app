@@ -6,6 +6,12 @@ public class BuyNowDto
     public int Quantity { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;
     public string DeliveryAddress { get; set; } = string.Empty;
+
+    // ========== THÊM 2 TRƯỜNG MỚI ==========
+    public string ReceiverName { get; set; } = string.Empty;
+    public string ReceiverPhone { get; set; } = string.Empty;
+    // ========================================
+
     public string? VoucherCode { get; set; }
     public decimal ShippingFee { get; set; } = 25000;
 }
@@ -33,6 +39,12 @@ public class OrderDto
     public string? PaymentMethod { get; set; }
     public string? PaymentStatus { get; set; }
     public string DeliveryAddress { get; set; } = string.Empty;
+
+    // ========== THÊM 2 TRƯỜNG MỚI ==========
+    public string ReceiverName { get; set; } = string.Empty;
+    public string ReceiverPhone { get; set; } = string.Empty;
+    // ========================================
+
     public DateTime CreatedAt { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
     public string? VoucherCode { get; set; }
@@ -41,9 +53,15 @@ public class OrderDto
 public class OrderListDto
 {
     public string OrderId { get; set; } = string.Empty;
-    public string CustomerName { get; set; } = string.Empty;      // THÊM DÒNG NÀY
-    public string CustomerPhone { get; set; } = string.Empty;     // THÊM DÒNG NÀY
-    public string DeliveryAddress { get; set; } = string.Empty;   // THÊM DÒNG NÀY
+    public string CustomerName { get; set; } = string.Empty;
+    public string CustomerPhone { get; set; } = string.Empty;
+    public string DeliveryAddress { get; set; } = string.Empty;
+
+    // ========== THÊM 2 TRƯỜNG MỚI ==========
+    public string ReceiverName { get; set; } = string.Empty;
+    public string ReceiverPhone { get; set; } = string.Empty;
+    // ========================================
+
     public string? PaymentStatus { get; set; }
     public DateTime CreatedAt { get; set; }
     public decimal FinalAmount { get; set; }
@@ -55,6 +73,12 @@ public class CreateOrderDto
 {
     public string DeliveryAddress { get; set; } = string.Empty;
     public string PaymentMethod { get; set; } = string.Empty;
+
+    // ========== THÊM 2 TRƯỜNG MỚI ==========
+    public string ReceiverName { get; set; } = string.Empty;
+    public string ReceiverPhone { get; set; } = string.Empty;
+    // ========================================
+
     public string? VoucherCode { get; set; }
     public decimal ShippingFee { get; set; } = 25000;
 }

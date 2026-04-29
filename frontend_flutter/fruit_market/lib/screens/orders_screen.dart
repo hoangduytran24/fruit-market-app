@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
-import '../providers/real_time_provider.dart'; // Đã thêm
+import '../providers/real_time_provider.dart';
 import '../models/Order.dart';
 import '../models/OrderItem.dart';
 import 'order_detail_screen.dart';
@@ -20,21 +20,19 @@ class _OrdersScreenState extends State<OrdersScreen>
   late TabController _tabController;
   bool _isLoading = true;
 
-  // Fresh fruit color palette - Giữ nguyên từ file mẫu của bạn
+  // Fresh fruit color palette
   static const _primaryGreen = Color(0xFF2E7D32);
   static const _orange = Color(0xFFFF9800);
   static const _blue = Color(0xFF2196F3);
-  static const _teal = Colors.teal; // Màu cho Processing
+  static const _teal = Colors.teal;
   static const _red = Color(0xFFEF5350);
   static const _background = Color(0xFFF9F9F9);
   static const _cardWhite = Colors.white;
   static const _textDark = Color(0xFF2C3E2F);
   static const _textLight = Color(0xFF7C9A7E);
 
-  // Đã thêm 'processing' vào danh sách
   static const _statuses = ['pending', 'processing', 'shipping', 'completed', 'cancelled'];
   
-  // Cấu hình trạng thái - Đã cập nhật thêm 'processing'
   static const _statusConfig = {
     'pending': {
       'label': 'Chờ xử lý',
@@ -81,7 +79,6 @@ class _OrdersScreenState extends State<OrdersScreen>
       _tabController.animateTo(_statuses.indexOf(widget.initialStatus!));
     }
 
-    // Tích hợp RealTimeProvider và Load dữ liệu ban đầu
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final realTimeProvider = context.read<RealTimeProvider>();
       realTimeProvider.initialize();
@@ -335,7 +332,6 @@ class _OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lấy config theo status, mặc định là pending nếu không tìm thấy
     final config = statusConfig[order.status.toLowerCase()] ?? statusConfig['pending']!;
     final statusColor = config['color'] as Color;
     
@@ -350,12 +346,20 @@ class _OrderCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _borderLight, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           children: [
             _buildHeader(config, statusColor),
+            _buildReceiverInfo(),
             _buildProductList(),
-            _buildFooter(context, statusColor),
+            _buildFooter(context),
           ],
         ),
       ),
@@ -405,6 +409,61 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
+  // Thông tin người nhận
+  Widget _buildReceiverInfo() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _borderLight, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: _primaryGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.person_outline,
+              size: 16,
+              color: _primaryGreen,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Người nhận: ${order.receiverName}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _textDark,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'SĐT: ${order.receiverPhone}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: _textLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductList() {
     if (order.items == null || order.items!.isEmpty) return const SizedBox();
     final items = order.items!.take(2).toList();
@@ -414,7 +473,7 @@ class _OrderCard extends StatelessWidget {
       child: Column(
         children: [
           ...items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(top: 12),
             child: Row(
               children: [
                 _buildProductImage(item),
@@ -446,7 +505,7 @@ class _OrderCard extends StatelessWidget {
           )),
           if (order.items!.length > 2)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
               child: Row(
                 children: [
                   const Icon(Icons.add, size: 14, color: _textLight),
@@ -481,7 +540,8 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFooter(BuildContext context, Color statusColor) {
+  // Footer với nút Chi tiết thiết kế nhỏ gọn, đẹp - ĐÃ BỎ NÚT HỦY
+  Widget _buildFooter(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: const BoxDecoration(
@@ -490,47 +550,62 @@ class _OrderCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Tổng tiền
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Tổng cộng', style: TextStyle(fontSize: 12, color: _textLight)),
+              const Text(
+                'Tổng cộng',
+                style: TextStyle(fontSize: 12, color: _textLight),
+              ),
+              const SizedBox(height: 4),
               Text(
-                formatCurrency(order.finalAmount + 25000), // Cộng phí ship 25k như file cũ
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _primaryGreen),
+                formatCurrency(order.finalAmount + 25000),
+                style: const TextStyle(
+                  fontSize: 18, 
+                  fontWeight: FontWeight.bold, 
+                  color: _primaryGreen,
+                ),
               ),
             ],
           ),
-          Row(
-            children: [
-              if (order.status.toLowerCase() == 'pending')
-                OutlinedButton(
-                  onPressed: () => onCancel(order),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red, width: 1),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          
+          // Nút Chi tiết - thiết kế nhỏ gọn
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: _primaryGreen,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: _primaryGreen.withOpacity(0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
-                  child: const Text('Hủy', style: TextStyle(fontSize: 13)),
-                ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 0,
-                ),
-                child: const Text('Chi tiết', style: TextStyle(fontSize: 13)),
+                ],
               ),
-            ],
+              child: const Row(
+                children: [
+                  Icon(Icons.arrow_forward_ios, size: 12, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text(
+                    'Chi tiết',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

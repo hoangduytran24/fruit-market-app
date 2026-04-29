@@ -1,6 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using fruit_api.DTOs.Auth;
 using fruit_api.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace fruit_api.Controllers;
 
@@ -36,6 +38,37 @@ public class AuthController : ControllerBase
         {
             var result = await _authService.LoginAsync(loginDto);
             return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // THÊM API NÀY: Lấy thông tin user hiện tại từ token
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        try
+        {
+            // Lấy UserId từ token
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Invalid token" });
+            }
+
+            // Gọi service để lấy thông tin user
+            var user = await _authService.GetUserByIdAsync(userId);
+
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            return Ok(user);
         }
         catch (Exception ex)
         {

@@ -50,12 +50,10 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _checkConnection();
     
-    // Tải lịch sử từ SQL khi vào trang
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
       
-      // Chỉ add tin chào mừng nếu chưa có tin nhắn nào
       if (chatProvider.messages.isEmpty) {
         chatProvider.addMessage(
           'Xin chào! Tôi là trợ lý ảo của GreenFruit Market 🌟\n\nTôi có thể giúp gì cho bạn hôm nay?', 
@@ -94,7 +92,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
     final String? token = authProvider.token;
 
-    // Thêm tin nhắn của User vào Provider
     chatProvider.addMessage(text, true);
     _messageController.clear();
     
@@ -105,10 +102,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      // Lấy 10 tin nhắn gần nhất để làm context
       final recentMessages = chatProvider.getRecentMessages(limit: 10);
-      
-      // Gửi lên Backend
       final response = await _apiService.askAi(text, token, recentMessages);
       
       if (mounted) {
@@ -179,6 +173,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.white,
+      automaticallyImplyLeading: false, // Bỏ nút quay lại
       systemOverlayStyle: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
@@ -220,18 +215,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.refresh, color: Color(0xFF2C3E50)),
-          onPressed: () {
-            chatProvider.clearMessages();
-            chatProvider.addMessage('Xin chào! Tôi là trợ lý ảo của GreenFruit Market 🌟\n\nTôi có thể giúp gì cho bạn hôm nay?', false);
-            _checkConnection();
-            _scrollToBottom();
-          },
-        ),
-        const SizedBox(width: 8),
-      ],
+      // Đã xóa phần actions (nút Refresh) tại đây
     );
   }
 

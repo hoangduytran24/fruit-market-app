@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/product_provider.dart';
-import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../widgets/product_card.dart';
@@ -20,18 +19,16 @@ class _ShopScreenState extends State<ShopScreen> {
   final PageController _bannerPageController = PageController();
   int _currentBannerIndex = 0;
   
-  // Biến để lưu danh mục đang được chọn
   String? _selectedCategoryId;
-  bool _isDataLoaded = false;
+  bool _isLoadingData = false;
+  String? _loadError;
 
-  // Danh sách banner
   final List<String> _bannerImages = [
     'lib/assets/img/bn1.png',
     'lib/assets/img/bn2.png',
     'lib/assets/img/bn3.png',
   ];
 
-  // Hàm lấy tên hiển thị (tên cuối cùng)
   String _getDisplayName(String fullName) {
     if (fullName.isEmpty) return 'Người dùng';
     
@@ -49,27 +46,42 @@ class _ShopScreenState extends State<ShopScreen> {
       _loadInitialData();
     });
     
-    // Tự động chuyển banner mỗi 3 giây
     _startBannerAutoScroll();
   }
 
   Future<void> _loadInitialData() async {
-    if (_isDataLoaded) return;
+    if (_isLoadingData) return;
+    
+    setState(() {
+      _isLoadingData = true;
+      _loadError = null;
+    });
     
     final productProvider = Provider.of<ProductProvider>(context, listen: false);
     final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
     
-    // Load sản phẩm chỉ khi chưa có dữ liệu
-    if (!productProvider.hasLoaded) {
+    try {
+      // Load sản phẩm - luôn refresh khi vào shop
       await productProvider.loadProducts(refresh: true);
+      
+      // Load danh mục - luôn gọi API mới, bỏ qua kiểm tra hasLoaded
+      // Điều này đảm bảo nếu splash load thất bại, shop vẫn load được
+      await categoryProvider.fetchCategories();
+      
+      if (mounted) {
+        setState(() {
+          _isLoadingData = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading data in ShopScreen: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingData = false;
+          _loadError = 'Không thể tải dữ liệu. Vui lòng kiểm tra kết nối mạng.';
+        });
+      }
     }
-    
-    // Load danh mục chỉ khi chưa có dữ liệu
-    if (!categoryProvider.hasLoaded) {
-      await categoryProvider.ensureCategoriesLoaded();
-    }
-    
-    _isDataLoaded = true;
   }
 
   void _startBannerAutoScroll() {
@@ -99,13 +111,27 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 
   Future<void> _refreshProducts() async {
-    final provider = Provider.of<ProductProvider>(context, listen: false);
-    provider.clearSearch();
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    final categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
+    
+    productProvider.clearSearch();
     _searchController.clear();
     setState(() {
       _selectedCategoryId = null;
     });
-    await provider.refreshProducts();
+    
+    try {
+      await Future.wait([
+        productProvider.refreshProducts(),
+        categoryProvider.fetchCategories(), // Refresh categories khi kéo thả
+      ]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi khi làm mới: $e')),
+        );
+      }
+    }
   }
 
   void _goToPage(int page) {
@@ -133,14 +159,50 @@ class _ShopScreenState extends State<ShopScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final categoryProvider = Provider.of<CategoryProvider>(context);
     
-    // Lấy tên người dùng từ AuthProvider
     final user = authProvider.currentUser;
     final fullName = user?.fullName ?? 'Người dùng';
     final displayName = _getDisplayName(fullName);
 
+    // Hiển thị lỗi nếu có
+    if (_loadError != null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 60, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'Tải dữ liệu thất bại',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  _loadError!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => _loadInitialData(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                ),
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // Hiển thị loading nếu đang load lần đầu
-    if ((!productProvider.hasLoaded && productProvider.isLoading) || 
-        (!categoryProvider.hasLoaded && categoryProvider.isLoading)) {
+    if (_isLoadingData) {
       return Scaffold(
         backgroundColor: Colors.white,
         body: Center(
@@ -176,7 +238,6 @@ class _ShopScreenState extends State<ShopScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              // Logo và tên app
               Row(
                 children: [
                   Container(
@@ -201,10 +262,7 @@ class _ShopScreenState extends State<ShopScreen> {
                           return Container(
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF7CB342),
-                                  Color(0xFF4CAF50),
-                                ],
+                                colors: [Color(0xFF7CB342), Color(0xFF4CAF50)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -255,7 +313,6 @@ class _ShopScreenState extends State<ShopScreen> {
               
               const SizedBox(width: 12),
               
-              // Thanh tìm kiếm
               Expanded(
                 child: Container(
                   height: 46,
@@ -354,7 +411,6 @@ class _ShopScreenState extends State<ShopScreen> {
                   size: 22,
                 ),
                 onPressed: () {
-                  // Xử lý thông báo ở đây
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Tính năng đang phát triển'),
@@ -407,7 +463,6 @@ class _ShopScreenState extends State<ShopScreen> {
               )
             : CustomScrollView(
                 slivers: [
-                  // Phần chào hỏi
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -434,7 +489,6 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                   ),
 
-                  // Banner Carousel
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: 160,
@@ -490,7 +544,6 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                   ),
                   
-                  // Chỉ báo dấu chấm
                   SliverToBoxAdapter(
                     child: Container(
                       margin: const EdgeInsets.only(top: 4),
@@ -515,7 +568,6 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                   ),
                   
-                  // Danh mục
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -549,12 +601,32 @@ class _ShopScreenState extends State<ShopScreen> {
                           ),
                           const SizedBox(height: 8),
                           
-                          // Hiển thị danh mục từ API
-                          if (categoryProvider.categories.isEmpty)
+                          if (categoryProvider.categories.isEmpty && categoryProvider.isLoading)
                             const SizedBox(
                               height: 115,
                               child: Center(
-                                child: Text('Không có danh mục'),
+                                child: CircularProgressIndicator(color: Colors.green),
+                              ),
+                            )
+                          else if (categoryProvider.categories.isEmpty && !categoryProvider.isLoading)
+                            SizedBox(
+                              height: 115,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.category_outlined, size: 40, color: Colors.grey),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Không có danh mục',
+                                      style: TextStyle(color: Colors.grey[600]),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => _refreshProducts(),
+                                      child: const Text('Thử lại'),
+                                    ),
+                                  ],
+                                ),
                               ),
                             )
                           else
@@ -566,7 +638,6 @@ class _ShopScreenState extends State<ShopScreen> {
                                 itemCount: categoryProvider.categories.length + 1,
                                 physics: const BouncingScrollPhysics(),
                                 itemBuilder: (context, index) {
-                                  // Item "Tất cả" ở đầu
                                   if (index == 0) {
                                     final isSelected = _selectedCategoryId == null;
                                     
@@ -639,7 +710,6 @@ class _ShopScreenState extends State<ShopScreen> {
                                     );
                                   }
                                   
-                                  // Các danh mục từ API
                                   final category = categoryProvider.categories[index - 1];
                                   final isSelected = _selectedCategoryId == category.categoryId;
                                   
@@ -664,7 +734,6 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                   ),
                   
-                  // Gợi ý cho bạn
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -696,8 +765,7 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                   ),
                   
-                  // Danh sách sản phẩm
-                  if (productProvider.products.isEmpty)
+                  if (productProvider.products.isEmpty && !productProvider.isLoading)
                     const SliverToBoxAdapter(
                       child: Center(
                         child: Padding(
@@ -712,6 +780,15 @@ class _ShopScreenState extends State<ShopScreen> {
                               ),
                             ],
                           ),
+                        ),
+                      ),
+                    )
+                  else if (productProvider.products.isEmpty && productProvider.isLoading)
+                    const SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(40),
+                          child: CircularProgressIndicator(color: Colors.green),
                         ),
                       ),
                     )
@@ -746,7 +823,6 @@ class _ShopScreenState extends State<ShopScreen> {
                       ),
                     ),
                   
-                  // Phân trang
                   if (productProvider.totalPages > 1)
                     SliverToBoxAdapter(
                       child: Padding(
@@ -806,7 +882,7 @@ class _ShopScreenState extends State<ShopScreen> {
       width: 36,
       height: 36,
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300!),
+        border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
         color: onPressed == null ? Colors.grey.shade100 : Colors.white,
       ),
@@ -876,7 +952,7 @@ class _ShopScreenState extends State<ShopScreen> {
       height: 36,
       decoration: BoxDecoration(
         color: isSelected ? Colors.green : Colors.white,
-        border: Border.all(color: isSelected ? Colors.green : Colors.grey.shade300!),
+        border: Border.all(color: isSelected ? Colors.green : Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
       ),
       child: TextButton(

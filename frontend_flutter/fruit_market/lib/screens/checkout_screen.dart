@@ -70,9 +70,13 @@ class CheckoutItem {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
+  
+  // ========== THÔNG TIN NGƯỜI NHẬN ==========
+  final _receiverNameController = TextEditingController();
+  final _receiverPhoneController = TextEditingController();
   final _addressController = TextEditingController();
+  // ==========================================
+  
   final _noteController = TextEditingController();
   
   String _paymentMethod = 'cod';
@@ -101,8 +105,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final user = authProvider.currentUser;
     if (user != null) {
       setState(() {
-        _nameController.text = user.fullName;
-        _phoneController.text = user.phone ?? '';
+        // Lấy thông tin người nhận từ user làm giá trị mặc định
+        _receiverNameController.text = user.fullName;
+        _receiverPhoneController.text = user.phone;
         _addressController.text = '';
       });
     }
@@ -147,27 +152,31 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
   
   double get _finalAmount => _totalAmount - _discountAmount;
-  
-  int get _totalItems => widget.items.fold(0, (sum, item) => sum + item.quantity);
-
   bool _isVoucherValid(VoucherPublicDto voucher) {
     if (voucher.isExpired) return false;
     if (_totalAmount < voucher.minOrderValue) return false;
     return true;
   }
 
-  // SỬA: Xử lý thanh toán theo phương thức
   Future<void> _processOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_phoneController.text.length < 10) {
-      _showErrorSnackBar('Số điện thoại không hợp lệ');
+    // Validate thông tin người nhận
+    if (_receiverNameController.text.trim().isEmpty) {
+      _showErrorSnackBar('Vui lòng nhập tên người nhận');
+      return;
+    }
+    if (_receiverPhoneController.text.trim().length < 10) {
+      _showErrorSnackBar('Số điện thoại người nhận không hợp lệ');
+      return;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      _showErrorSnackBar('Vui lòng nhập địa chỉ giao hàng');
       return;
     }
 
     // Nếu chọn chuyển khoản ngân hàng -> chuyển sang màn hình QR
     if (_paymentMethod == 'bank_transfer') {
-      // Tạo đơn hàng trước (với trạng thái pending)
       setState(() => _isProcessing = true);
       
       final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -183,12 +192,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             quantity: item.quantity,
             paymentMethod: 'bank_transfer',
             deliveryAddress: _addressController.text.trim(),
+            receiverName: _receiverNameController.text.trim(),
+            receiverPhone: _receiverPhoneController.text.trim(),
             voucherCode: voucherCode ?? widget.voucherCode,
           );
         } else {
           order = await orderProvider.createOrderFromCart(
             deliveryAddress: _addressController.text.trim(),
             paymentMethod: 'bank_transfer',
+            receiverName: _receiverNameController.text.trim(),
+            receiverPhone: _receiverPhoneController.text.trim(),
             voucherCode: voucherCode ?? widget.voucherCode,
           );
         }
@@ -196,19 +209,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         setState(() => _isProcessing = false);
         
         if (order != null) {
-          // Chuyển sang màn hình thanh toán VietQR
           if (mounted) {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => VietQRPaymentScreen(
                   orderId: order!.orderId,
-                  amount: _finalAmount + 25000, // Tổng thanh toán bao gồm phí ship
+                  amount: _finalAmount + 25000,
                 ),
               ),
             ).then((result) {
               if (result == true) {
-                // Thanh toán thành công
                 if (!widget.isBuyNow) {
                   final cartProvider = Provider.of<CartProvider>(context, listen: false);
                   cartProvider.clearCart();
@@ -227,7 +238,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
     
-    // COD: xử lý như cũ
+    // COD
     setState(() => _isProcessing = true);
 
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -243,12 +254,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           quantity: item.quantity,
           paymentMethod: _paymentMethod,
           deliveryAddress: _addressController.text.trim(),
+          receiverName: _receiverNameController.text.trim(),
+          receiverPhone: _receiverPhoneController.text.trim(),
           voucherCode: voucherCode ?? widget.voucherCode,
         );
       } else {
         order = await orderProvider.createOrderFromCart(
           deliveryAddress: _addressController.text.trim(),
           paymentMethod: _paymentMethod,
+          receiverName: _receiverNameController.text.trim(),
+          receiverPhone: _receiverPhoneController.text.trim(),
           voucherCode: voucherCode ?? widget.voucherCode,
         );
       }
@@ -473,8 +488,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  // ... (các phương thức _showVoucherDialog, _buildVoucherCard, v.v. giữ nguyên)
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -508,7 +521,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildSectionHeader('Thông tin giao hàng', Icons.local_shipping_outlined),
+                          _buildSectionHeader('Thông tin nhận hàng', Icons.local_shipping_outlined),
                           _buildDeliveryInfoCard(),
                           
                           const SizedBox(height: 28),
@@ -648,7 +661,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Thông tin nhận hàng',
+            'Thông tin người nhận',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -656,30 +669,60 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          
+          // Tên người nhận
           _buildEditableInfoField(
-            controller: _nameController,
+            controller: _receiverNameController,
             icon: Icons.person_outline,
-            label: 'Họ và tên',
-            validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập họ tên' : null,
+            label: 'Tên người nhận',
+            validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập tên người nhận' : null,
           ),
           const SizedBox(height: 12),
+          
+          // Số điện thoại người nhận
           _buildEditableInfoField(
-            controller: _phoneController,
+            controller: _receiverPhoneController,
             icon: Icons.phone_iphone_outlined,
             label: 'Số điện thoại',
             keyboardType: TextInputType.phone,
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Vui lòng nhập số điện thoại';
+              if (value == null || value.isEmpty) return 'Vui lòng nhập số điện thoại người nhận';
               if (value.length < 10) return 'Số điện thoại không hợp lệ';
               return null;
             },
           ),
           const SizedBox(height: 12),
+          
+          // Địa chỉ giao hàng
           _buildEditableInfoField(
             controller: _addressController,
             icon: Icons.location_on_outlined,
-            label: 'Địa chỉ',
+            label: 'Địa chỉ giao hàng',
             validator: (value) => value == null || value.isEmpty ? 'Vui lòng nhập địa chỉ giao hàng' : null,
+          ),
+          
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _primaryColor.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 14, color: _primaryColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Bạn có thể thay đổi thông tin người nhận nếu muốn giao hàng cho người khác',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: _textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1524,8 +1567,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
+    _receiverNameController.dispose();
+    _receiverPhoneController.dispose();
     _addressController.dispose();
     _noteController.dispose();
     super.dispose();

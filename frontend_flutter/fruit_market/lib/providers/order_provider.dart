@@ -21,11 +21,10 @@ class OrderProvider extends ChangeNotifier {
   bool get isFetching => _isFetching;
   bool get hasOrders => _orders.isNotEmpty;
   
-  // --- Lấy danh sách đơn hàng (Đã sửa lỗi fix cứng dữ liệu) ---
+  // --- Lấy danh sách đơn hàng ---
   Future<bool> fetchMyOrders({bool forceRefresh = false}) async {
     if (_isFetching) return false;
     
-    // Chỉ chặn nếu đã có dữ liệu và không yêu cầu làm mới
     if (_hasLoaded && !forceRefresh && _orders.isNotEmpty) {
       return true;
     }
@@ -65,7 +64,7 @@ class OrderProvider extends ChangeNotifier {
     }
   }
 
-  // --- CÁC HÀM QUAN TRỌNG CHO CHECKOUT (ĐÃ THÊM LẠI) ---
+  // --- CÁC HÀM QUAN TRỌNG CHO CHECKOUT ---
 
   // Mua ngay
   Future<Order?> buyNow({
@@ -73,6 +72,8 @@ class OrderProvider extends ChangeNotifier {
     required int quantity,
     required String paymentMethod,
     required String deliveryAddress,
+    required String receiverName,      // Thêm
+    required String receiverPhone,     // Thêm
     String? voucherCode,
     double shippingFee = 25000,
   }) async {
@@ -84,10 +85,11 @@ class OrderProvider extends ChangeNotifier {
         quantity: quantity,
         paymentMethod: paymentMethod,
         deliveryAddress: deliveryAddress,
+        receiverName: receiverName,      // Thêm
+        receiverPhone: receiverPhone,    // Thêm
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
-      // Sau khi mua thành công, xóa trạng thái cũ để màn hình đơn hàng load lại bản mới nhất
       await fetchMyOrders(forceRefresh: true);
       return order;
     } catch (e) {
@@ -102,6 +104,8 @@ class OrderProvider extends ChangeNotifier {
   Future<Order?> createOrderFromCart({
     required String deliveryAddress,
     required String paymentMethod,
+    required String receiverName,      // Thêm
+    required String receiverPhone,     // Thêm
     String? voucherCode,
     double shippingFee = 25000,
   }) async {
@@ -111,10 +115,11 @@ class OrderProvider extends ChangeNotifier {
       final order = await _orderService.createOrderFromCart(
         deliveryAddress: deliveryAddress,
         paymentMethod: paymentMethod,
+        receiverName: receiverName,      // Thêm
+        receiverPhone: receiverPhone,    // Thêm
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
-      // Ép buộc cập nhật lại danh sách đơn hàng
       await fetchMyOrders(forceRefresh: true);
       return order;
     } catch (e) {

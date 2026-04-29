@@ -12,6 +12,8 @@ class Order {
   final String? paymentMethod;
   final String? paymentStatus; 
   final String deliveryAddress;
+  final String receiverName;
+  final String receiverPhone;
   final DateTime createdAt;
   final List<OrderItem>? items;
   final String? voucherCode;
@@ -28,6 +30,8 @@ class Order {
     this.paymentMethod,
     this.paymentStatus,
     required this.deliveryAddress,
+    required this.receiverName,      // Thêm
+    required this.receiverPhone,     // Thêm
     required this.createdAt,
     this.items,
     this.voucherCode,
@@ -47,6 +51,8 @@ class Order {
       paymentMethod: json['paymentMethod'],
       paymentStatus: json['paymentStatus'] ?? 'unpaid', 
       deliveryAddress: json['deliveryAddress'] ?? '',
+      receiverName: json['receiverName'] ?? '',      // Thêm
+      receiverPhone: json['receiverPhone'] ?? '',    // Thêm
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : DateTime.now(),
@@ -73,6 +79,8 @@ class Order {
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus, 
       'deliveryAddress': deliveryAddress,
+      'receiverName': receiverName,      // Thêm
+      'receiverPhone': receiverPhone,    // Thêm
       'createdAt': createdAt.toIso8601String(),
       'items': items?.map((e) => e.toJson()).toList(),
       'voucherCode': voucherCode,

@@ -128,6 +128,8 @@ public class OrderService : IOrderService
                 CustomerName = o.User != null ? o.User.FullName : string.Empty,
                 CustomerPhone = o.User != null ? o.User.Phone : string.Empty,
                 DeliveryAddress = o.DeliveryAddress,
+                ReceiverName = o.ReceiverName,
+                ReceiverPhone = o.ReceiverPhone,
                 CreatedAt = o.CreatedAt,
                 FinalAmount = o.FinalAmount,
                 Status = o.Status,
@@ -156,6 +158,8 @@ public class OrderService : IOrderService
             CustomerName = o.User != null ? o.User.FullName : string.Empty,
             CustomerPhone = o.User != null ? o.User.Phone : string.Empty,
             DeliveryAddress = o.DeliveryAddress,
+            ReceiverName = o.ReceiverName,
+            ReceiverPhone = o.ReceiverPhone,
             CreatedAt = o.CreatedAt,
             FinalAmount = o.FinalAmount,
             Status = o.Status,
@@ -191,6 +195,8 @@ public class OrderService : IOrderService
             PaymentMethod = order.PaymentMethod,
             PaymentStatus = order.Payment?.PaymentStatus ?? "unpaid",
             DeliveryAddress = order.DeliveryAddress,
+            ReceiverName = order.ReceiverName,
+            ReceiverPhone = order.ReceiverPhone,
             CreatedAt = order.CreatedAt,
             VoucherCode = order.OrderVoucher?.Voucher?.VoucherCode,
             Items = order.OrderItems?.Select(oi => new OrderItemDto
@@ -257,7 +263,6 @@ public class OrderService : IOrderService
         }
 
         decimal totalAmount = subtotal + createOrderDto.ShippingFee;
-        // KHÔNG gán FinalAmount - nó sẽ tự tính trong database
 
         var order = new Order
         {
@@ -265,10 +270,11 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
-            // FinalAmount KHÔNG gán - computed property
             Status = "pending",
             PaymentMethod = createOrderDto.PaymentMethod,
             DeliveryAddress = createOrderDto.DeliveryAddress,
+            ReceiverName = createOrderDto.ReceiverName,
+            ReceiverPhone = createOrderDto.ReceiverPhone,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -291,7 +297,6 @@ public class OrderService : IOrderService
                 ProductId = item.ProductId,
                 Quantity = item.Quantity,
                 PriceAtTime = item.PriceAtTime
-                // Subtotal KHÔNG gán - computed property
             };
             _context.OrderItems.Add(orderItem);
 
@@ -326,7 +331,6 @@ public class OrderService : IOrderService
         // ========== GỬI REAL-TIME NOTIFICATION ==========
         try
         {
-            // Gửi thông báo đến admin
             await _realTimeService.NotifyNewOrderToAdminsAsync(new NewOrderNotificationDto
             {
                 OrderId = order.OrderId,
@@ -336,7 +340,6 @@ public class OrderService : IOrderService
                 CreatedAt = order.CreatedAt
             });
 
-            // Gửi thông báo đến user
             await _realTimeService.NotifyUserAsync(
                 userId,
                 "OrderCreated",
@@ -406,7 +409,6 @@ public class OrderService : IOrderService
         }
 
         decimal totalAmount = subtotal + buyNowDto.ShippingFee;
-        // KHÔNG gán FinalAmount - computed property
 
         var order = new Order
         {
@@ -414,10 +416,11 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
-            // FinalAmount KHÔNG gán - computed property
             Status = "pending",
             PaymentMethod = buyNowDto.PaymentMethod,
             DeliveryAddress = buyNowDto.DeliveryAddress,
+            ReceiverName = buyNowDto.ReceiverName,
+            ReceiverPhone = buyNowDto.ReceiverPhone,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -438,7 +441,6 @@ public class OrderService : IOrderService
             ProductId = product.ProductId,
             Quantity = buyNowDto.Quantity,
             PriceAtTime = product.Price
-            // Subtotal KHÔNG gán - computed property
         };
         _context.OrderItems.Add(orderItem);
 
@@ -524,7 +526,6 @@ public class OrderService : IOrderService
 
         await _context.SaveChangesAsync();
 
-        // ========== GỬI REAL-TIME NOTIFICATION ==========
         try
         {
             await _realTimeService.NotifyOrderStatusChangedAsync(
@@ -541,7 +542,6 @@ public class OrderService : IOrderService
         {
             _logger.LogError(ex, $"Failed to send real-time status update for order {id}");
         }
-        // =============================================
 
         return await GetOrderByIdAsync(id) ?? throw new Exception("Order not found");
     }
@@ -570,7 +570,6 @@ public class OrderService : IOrderService
 
         await _context.SaveChangesAsync();
 
-        // ========== GỬI REAL-TIME NOTIFICATION ==========
         try
         {
             await _realTimeService.NotifyOrderStatusChangedAsync(
@@ -587,7 +586,6 @@ public class OrderService : IOrderService
         {
             _logger.LogError(ex, $"Failed to send real-time cancellation for order {id}");
         }
-        // =============================================
 
         return true;
     }
