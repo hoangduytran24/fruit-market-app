@@ -4,7 +4,7 @@ using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.SemanticKernel;
 
-namespace fruit_api.Plugins;  
+namespace fruit_api.Plugins;
 
 public class FruitShopPlugin
 {
@@ -78,16 +78,21 @@ public class FruitShopPlugin
     [KernelFunction("check_order")]
     [Description("Kiểm tra thông tin đơn hàng theo mã đơn")]
     public async Task<OrderInfo?> CheckOrderAsync(
-        [Description("Mã đơn hàng")] string orderCode)
+    [Description("Mã đơn hàng")] string orderCode)
     {
         using var connection = CreateConnection();
         var sql = @"
-            SELECT orderId, userId, totalAmount, discountAmount, finalAmount, 
-                   status, paymentMethod, deliveryAddress, createdAt
-            FROM Orders 
-            WHERE orderId = @OrderCode";
+        SELECT orderId, userId, totalAmount, discountAmount, finalAmount, 
+               orderStatus as status, paymentMethod, deliveryAddress, createdAt,
+               ReceiverName
+        FROM Orders 
+        WHERE orderId = @OrderCode";
 
-        return await connection.QueryFirstOrDefaultAsync<OrderInfo>(sql, new { OrderCode = orderCode });
+        var result = await connection.QueryFirstOrDefaultAsync<OrderInfo>(sql, new { OrderCode = orderCode });
+
+        Console.WriteLine($"[DEBUG] CheckOrderAsync: orderCode={orderCode}, found={result != null}, status={result?.Status}, receiver={result?.ReceiverName}");
+
+        return result;
     }
 
     [KernelFunction("get_orders_by_phone")]
@@ -98,14 +103,17 @@ public class FruitShopPlugin
         using var connection = CreateConnection();
         var sql = @"
             SELECT o.orderId, o.userId, o.totalAmount, o.discountAmount, o.finalAmount, 
-                   o.status, o.paymentMethod, o.deliveryAddress, o.createdAt,
-                   u.phone, u.fullName
+                   o.orderStatus as status, o.paymentMethod, o.deliveryAddress, o.createdAt,
+                   u.phone, u.ReceiverName
             FROM Orders o
             JOIN Users u ON o.userId = u.userId
             WHERE u.phone = @Phone
             ORDER BY o.createdAt DESC";
 
         var orders = await connection.QueryAsync<OrderInfo>(sql, new { Phone = phone });
+
+        Console.WriteLine($"[DEBUG] GetOrdersByPhoneAsync: phone={phone}, found={orders.Count()}");
+
         return orders.ToList();
     }
 
@@ -214,11 +222,11 @@ public class OrderInfo
     public string? DeliveryAddress { get; set; }
     public DateTime? CreatedAt { get; set; }
     public string? Phone { get; set; }
-    public string? FullName { get; set; }
+    public string? ReceiverName { get; set; }
 
     public string DisplayText => $"""
         📦 **Đơn hàng: {OrderId}**
-        👤 Khách hàng: {FullName ?? "Không xác định"}
+        👤 Khách hàng: {ReceiverName ?? "Không xác định"}
         📅 Ngày đặt: {CreatedAt:dd/MM/yyyy HH:mm}
         💰 Tổng tiền: {TotalAmount:N0}đ
         🎁 Giảm giá: {DiscountAmount:N0}đ

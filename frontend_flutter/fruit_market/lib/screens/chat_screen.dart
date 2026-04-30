@@ -5,7 +5,11 @@ import 'package:provider/provider.dart';
 import '../services/chat_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../providers/product_provider.dart';
+import '../providers/order_provider.dart';
 import '../models/chat_message.dart';
+import '../screens/product_detail_screen.dart';
+import '../screens/order_detail_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -135,6 +139,90 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  // Xử lý click link sản phẩm
+  Future<void> _handleProductLinkTap(String href) async {
+    final productId = href.split('/').last;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final product = await productProvider.getProductById(productId);
+      
+      if (context.mounted) {
+        Navigator.pop(context);
+        
+        if (product != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProductDetailScreen(product: product),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy sản phẩm')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    }
+  }
+
+  // Xử lý click link đơn hàng
+  Future<void> _handleOrderLinkTap(String href) async {
+    final uri = Uri.tryParse(href);
+    if (uri == null) return;
+    
+    final orderCode = uri.queryParameters['code'];
+    if (orderCode == null || orderCode.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      final order = await orderProvider.fetchOrderDetail(orderCode);
+      
+      if (context.mounted) {
+        Navigator.pop(context);
+        
+        if (order != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderDetailScreen(order: order),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy thông tin đơn hàng')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatProvider = Provider.of<ChatProvider>(context);
@@ -173,7 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.white,
-      automaticallyImplyLeading: false, // Bỏ nút quay lại
+      automaticallyImplyLeading: false,
       systemOverlayStyle: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
@@ -215,7 +303,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
-      // Đã xóa phần actions (nút Refresh) tại đây
     );
   }
 
@@ -262,6 +349,15 @@ class _ChatScreenState extends State<ChatScreen> {
                         p: const TextStyle(fontSize: 15, height: 1.4, color: Color(0xFF2C3E50)),
                         a: const TextStyle(color: Color(0xFF4CAF50), decoration: TextDecoration.underline),
                       ),
+                      onTapLink: (text, href, title) {
+                        if (href != null) {
+                          if (href.contains('/products/')) {
+                            _handleProductLinkTap(href);
+                          } else if (href.contains('/orders/tracking')) {
+                            _handleOrderLinkTap(href);
+                          }
+                        }
+                      },
                     ),
             ),
             const SizedBox(height: 4),
