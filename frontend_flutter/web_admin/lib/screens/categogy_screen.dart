@@ -132,7 +132,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         crossAxisCount: isMobile ? 1 : (context.isTablet ? 2 : 4),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        mainAxisExtent: 110, // Giữ nguyên kích thước card
+        mainAxisExtent: 110,
       ),
       itemCount: categories.length,
       itemBuilder: (context, index) => _buildCategoryCard(categories[index], isMobile),
@@ -171,14 +171,17 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   const SizedBox(height: 4),
                   Text(
                     '${category.productCount} sản phẩm',
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                    style: TextStyle(
+                      color: category.productCount > 0 ? Colors.orange.shade700 : Colors.grey.shade500,
+                      fontSize: 12,
+                      fontWeight: category.productCount > 0 ? FontWeight.w500 : FontWeight.normal,
+                    ),
                   ),
                 ],
               ),
             ),
-            // Tối ưu phần hành động để tránh tràn trên mobile
             SizedBox(
-              width: isMobile ? 40 : 50, // Giới hạn chiều rộng khu vực nút
+              width: isMobile ? 40 : 50,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -207,9 +210,77 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  // --- MODERN DIALOG (Giữ nguyên logic cũ) ---
+  // --- HÀM KIỂM TRA TÊN DANH MỤC BỊ TRÙNG ---
+  bool _isCategoryNameDuplicate(String categoryName, [String? excludeCategoryId]) {
+    final categories = context.read<CategoryProvider>().categories;
+    return categories.any((cat) =>
+        cat.categoryName.toLowerCase() == categoryName.toLowerCase() &&
+        cat.categoryId != excludeCategoryId);
+  }
+
+  // --- HÀM HIỂN THỊ CẢNH BÁO TRÙNG TÊN ---
+  void _showDuplicateNameWarning() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text("Tên danh mục đã tồn tại"),
+          ],
+        ),
+        content: const Text("Vui lòng chọn tên danh mục khác để tránh trùng lặp."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Đã hiểu", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- HÀM HIỂN THỊ CẢNH BÁO KHÔNG THỂ XÓA VÌ CÓ SẢN PHẨM ---
+  void _showCannotDeleteWarning(CategoryModel category) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text("Không thể xóa danh mục"),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Danh mục "${category.categoryName}" đang có ${category.productCount} sản phẩm.',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Vui lòng chuyển hoặc xóa các sản phẩm thuộc danh mục này trước khi xóa danh mục.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Đã hiểu", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showFormDialog({required bool isEdit, CategoryModel? category}) {
-    // Để tương thích tốt hơn trên Mobile, dùng width dựa trên màn hình
     double dialogWidth = context.isMobile ? MediaQuery.of(context).size.width * 0.9 : 500;
 
     showDialog(
@@ -244,7 +315,20 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                               controller: _nameController,
                               label: "Tên danh mục",
                               icon: Icons.category_outlined,
-                              validator: (v) => v!.isEmpty ? "Vui lòng nhập tên danh mục" : null,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return "Vui lòng nhập tên danh mục";
+                                }
+                                // Kiểm tra trùng tên (trừ trường hợp đang sửa và tên không thay đổi)
+                                final isDuplicate = _isCategoryNameDuplicate(
+                                  v.trim(),
+                                  isEdit ? category?.categoryId : null
+                                );
+                                if (isDuplicate) {
+                                  return "Tên danh mục đã tồn tại";
+                                }
+                                return null;
+                              },
                             ),
                             const SizedBox(height: 16),
                             _buildTextField(
@@ -393,9 +477,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     );
   }
 
-  // --- LOGIC XỬ LÝ (Giữ nguyên) ---
+  // --- LOGIC XỬ LÝ ---
   Future<void> _handleSave(bool isEdit, String? id, StateSetter setStateDialog) async {
+    // Kiểm tra validate form (bao gồm cả kiểm tra trùng tên)
     if (!_formKey.currentState!.validate()) return;
+    
     setStateDialog(() => _isSubmitting = true);
 
     final provider = context.read<CategoryProvider>();
@@ -422,6 +508,9 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     if (success) {
       Navigator.pop(context);
       _loadData();
+    } else {
+      // Nếu API trả về lỗi trùng tên, hiển thị cảnh báo
+      _showDuplicateNameWarning();
     }
   }
 
@@ -455,6 +544,12 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 
   Future<void> _deleteCategory(CategoryModel category) async {
+    // Kiểm tra nếu danh mục có sản phẩm thì không cho xóa
+    if (category.productCount > 0) {
+      _showCannotDeleteWarning(category);
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -467,9 +562,27 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         ],
       ),
     );
+    
     if (confirmed == true) {
-      await context.read<CategoryProvider>().deleteCategory(category.categoryId);
-      _loadData();
+      final success = await context.read<CategoryProvider>().deleteCategory(category.categoryId);
+      if (success) {
+        _loadData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Xóa danh mục thành công'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể xóa danh mục này'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

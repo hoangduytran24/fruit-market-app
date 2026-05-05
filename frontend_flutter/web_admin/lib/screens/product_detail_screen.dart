@@ -4,7 +4,6 @@ import '../models/product.dart';
 import '../providers/product_provider.dart';
 import '../utils/image_utils.dart';
 import '../utils/responsive.dart';
-import 'product_form_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product? product;
@@ -92,17 +91,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => _navigateToEdit(product),
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(color: Color(0xFFE8F5E9), shape: BoxShape.circle),
-              child: const Icon(Icons.edit_outlined, size: 20, color: Color(0xFF1A5F3A)),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
+        // Đã xóa actions (nút sửa)
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -143,12 +132,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
               const SizedBox(height: 32),
               
-              // Nút xóa sản phẩm (Tùy chọn thêm để cân đối giao diện)
-              TextButton.icon(
-                onPressed: () { /* Xử lý xóa */ },
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                label: const Text("Gỡ bỏ sản phẩm này", style: TextStyle(color: Colors.redAccent)),
-              ),
+              // Đã xóa nút "Gỡ bỏ sản phẩm này"
             ],
           ),
         ),
@@ -295,12 +279,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  void _navigateToEdit(Product product) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ProductFormScreen(product: product)),
-    ).then((_) => _refresh());
-  }
 
   Widget _buildErrorState() {
     return Scaffold(

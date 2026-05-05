@@ -4,7 +4,7 @@ import '../providers/order_provider.dart';
 import '../models/order.dart';
 import '../utils/image_utils.dart';
 import '../utils/responsive.dart';
-import '../utils/pdf_helper.dart'; // Đã thêm import này
+import '../utils/pdf_helper.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -17,6 +17,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedStatus = 'Tất cả';
   final Color primaryGreen = const Color(0xFF1A5F3A);
+  final double shippingFee = 25000; // 25k phí ship
 
   final Map<String, String> _statusDisplay = {
     'Tất cả': 'Tất cả',
@@ -286,7 +287,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           Expanded(
               flex: 2,
-              child: Text(_formatCurrency(order.finalAmount),
+              child: Text(_formatCurrency(order.finalAmount+ shippingFee),
                   textAlign: TextAlign.right,
                   style: TextStyle(
                       color: primaryGreen,
@@ -386,6 +387,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
         getPaymentText: _getPaymentText,
         getPaymentColor: _getPaymentColor,
         formatDate: _formatDate,
+        shippingFee: shippingFee,
       ),
     );
   }
@@ -393,12 +395,13 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
 class _OrderDetailDialog extends StatelessWidget {
   final Order order;
-  final String Function(double) formatCurrency; // Sửa kiểu dữ liệu function
+  final String Function(double) formatCurrency;
   final Map<String, String> statusMap;
   final Color primaryGreen;
   final Function getPaymentText;
   final Function getPaymentColor;
-  final String Function(DateTime) formatDate; // Sửa kiểu dữ liệu function
+  final String Function(DateTime) formatDate;
+  final double shippingFee;
 
   const _OrderDetailDialog({
     required this.order,
@@ -408,6 +411,7 @@ class _OrderDetailDialog extends StatelessWidget {
     required this.getPaymentText,
     required this.getPaymentColor,
     required this.formatDate,
+    required this.shippingFee,
   });
 
   Map<String, String>? _getNextStatusInfo(String currentStatus) {
@@ -423,10 +427,25 @@ class _OrderDetailDialog extends StatelessWidget {
     }
   }
 
+  int _getTotalQuantity() {
+    return order.items.fold(0, (sum, item) => sum + item.quantity);
+  }
+
+  double _getSubtotalAfterDiscount() {
+    return order.totalAmount - (order.discountAmount ?? 0);
+  }
+
+  double _getFinalTotalWithShipping() {
+    return _getSubtotalAfterDiscount() + shippingFee;
+  }
+
   @override
   Widget build(BuildContext context) {
     final nextInfo = _getNextStatusInfo(order.status);
     final bool isCompleted = order.status == 'completed';
+    final int totalQuantity = _getTotalQuantity();
+    final double subtotalAfterDiscount = _getSubtotalAfterDiscount();
+    final double finalTotalWithShipping = _getFinalTotalWithShipping();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -477,6 +496,33 @@ class _OrderDetailDialog extends StatelessWidget {
                     _buildReceiptRow("Địa chỉ:", order.deliveryAddress),
                     const Divider(height: 32),
                     
+                    // Hiển thị số lượng sản phẩm và tổng số lượng (mấy chỗ tổng cộng)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildReceiptRow(
+                            "Mấy chỗ tổng cộng:", 
+                            "${order.items.length} sản phẩm",
+                            isBold: true,
+                          ),
+                          const SizedBox(height: 4),
+                          _buildReceiptRow(
+                            "Tổng số lượng:", 
+                            "$totalQuantity món",
+                            isBold: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: const [
@@ -517,21 +563,57 @@ class _OrderDetailDialog extends StatelessWidget {
                     
                     const Divider(height: 32, thickness: 1, color: Colors.black12),
                     
+                    // Chi tiết giá
                     _buildReceiptRow("Tổng tiền hàng:", formatCurrency(order.totalAmount)),
                     if(order.discountAmount > 0)
                       _buildReceiptRow("Giảm giá:", "-${formatCurrency(order.discountAmount)}", color: Colors.red),
                     
+                    _buildReceiptRow(
+                      "Tạm tính (sau giảm giá):", 
+                      formatCurrency(subtotalAfterDiscount),
+                      isBold: true,
+                    ),
+                    
+                    _buildReceiptRow(
+                      "Phí vận chuyển:", 
+                      formatCurrency(shippingFee),
+                      color: Colors.orange,
+                      isBold: true,
+                    ),
+                    
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("TỔNG THANH TOÁN:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                        Text(formatCurrency(order.finalAmount), 
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: primaryGreen)),
-                      ],
+                    
+                    // Tổng cộng bao gồm phí ship
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: primaryGreen.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "TỔNG THANH TOÁN (đã bao gồm phí ship):", 
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 15,
+                            ),
+                          ),
+                          Text(
+                            formatCurrency(finalTotalWithShipping), 
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 22, 
+                              color: primaryGreen,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     
                     const SizedBox(height: 16),
+                    
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
@@ -571,7 +653,6 @@ class _OrderDetailDialog extends StatelessWidget {
 
                   const SizedBox(width: 12),
 
-                  // NÚT XUẤT HÓA ĐƠN: Đã thêm logic tại đây
                   if (isCompleted) 
                     Expanded(
                       flex: 2,
@@ -633,15 +714,28 @@ class _OrderDetailDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildReceiptRow(String label, String value, {Color? color}) {
+  Widget _buildReceiptRow(String label, String value, {Color? color, bool isBold = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-          Text(value, 
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: color)),
+          Text(
+            label, 
+            style: TextStyle(
+              color: isBold ? Colors.black : Colors.grey[600], 
+              fontSize: isBold ? 14 : 13,
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value, 
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500, 
+              fontSize: isBold ? 15 : 13, 
+              color: color,
+            ),
+          ),
         ],
       ),
     );

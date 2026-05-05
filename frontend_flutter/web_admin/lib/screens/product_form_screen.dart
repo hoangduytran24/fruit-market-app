@@ -286,11 +286,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               label: "Số lượng tồn kho",
                               icon: Icons.inventory_2_outlined,
                               keyboard: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              // ĐÃ SỬA: Bỏ digitsOnly để cho phép nhập dấu trừ
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r'^-?\d*$')),
+                              ],
                               validator: (v) {
                                 if (v == null || v.isEmpty) return "Nhập số lượng";
-                                final stock = int.tryParse(v) ?? -1;
-                                if (stock < 0) return "Tồn kho ≥ 0";
+                                
+                                // Kiểm tra nếu có dấu trừ và chỉ có dấu trừ
+                                if (v == '-') return "Vui lòng nhập số";
+                                
+                                final stock = int.tryParse(v);
+                                if (stock == null) return "Vui lòng nhập số hợp lệ";
+                                
+                                // CẢNH BÁO SỐ ÂM
+                                if (stock < 0) return "Số lượng tồn kho không thể là số âm";
+                                
                                 if (stock > 100000) return "Tồn kho ≤ 100.000";
                                 return null;
                               },
@@ -429,9 +440,17 @@ class CurrencyInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     if (newValue.text.isEmpty) return newValue.copyWith(text: '');
-    double value = double.parse(newValue.text);
-    final formatter = NumberFormat.decimalPattern('vi_VN');
-    String newText = formatter.format(value);
-    return newValue.copyWith(text: newText, selection: TextSelection.collapsed(offset: newText.length));
+    
+    // Cho phép xóa và nhập lại
+    if (newValue.text == '-') return newValue;
+    
+    try {
+      double value = double.parse(newValue.text);
+      final formatter = NumberFormat.decimalPattern('vi_VN');
+      String newText = formatter.format(value);
+      return newValue.copyWith(text: newText, selection: TextSelection.collapsed(offset: newText.length));
+    } catch (e) {
+      return newValue;
+    }
   }
 }
