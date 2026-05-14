@@ -98,6 +98,8 @@ builder.Services.AddScoped<IRealTimeService, RealTimeService>();
 builder.Services.AddScoped<VietQRService>();
 builder.Services.AddScoped<BankTransactionService>();
 builder.Services.AddSingleton<ChatHistoryService>();
+builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();

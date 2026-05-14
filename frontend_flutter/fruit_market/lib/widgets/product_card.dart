@@ -37,6 +37,12 @@ class ProductCard extends StatelessWidget {
   }
 
   Future<void> _handleAddToCart(BuildContext context) async {
+    // Kiểm tra sản phẩm có đang kinh doanh không
+    if (!product.isActive) {
+      _showNotTradingDialog(context);
+      return;
+    }
+    
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     
@@ -191,6 +197,90 @@ class ProductCard extends StatelessWidget {
     }
   }
 
+  void _showNotTradingDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF6B6B).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.store_mall_directory,
+                    color: Color(0xFFFF6B6B),
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Sản phẩm ngừng kinh doanh',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1E2C),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Sản phẩm "${product.productName}" hiện đã ngừng kinh doanh. Vui lòng chọn sản phẩm khác.',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF757575),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Đóng',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showLoginRequiredDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -302,12 +392,14 @@ class ProductCard extends StatelessWidget {
         ? cartProvider.getItemQuantity(product.productId) 
         : 0;
     
+    // Kiểm tra ngừng kinh doanh
+    final bool isNotTrading = !product.isActive;
     // Kiểm tra hết hàng
     final bool isOutOfStock = product.stockQuantity <= 0;
     final bool isLowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: isNotTrading ? null : onTap, // Không cho phép nhấn nếu ngừng kinh doanh
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -350,8 +442,37 @@ class ProductCard extends StatelessWidget {
                           : _buildNoImage(),
                     ),
                     
-                    // Overlay khi hết hàng
-                    if (isOutOfStock)
+                    // Overlay khi ngừng kinh doanh (ưu tiên hiển thị trước)
+                    if (isNotTrading)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        child: Center(
+                          child: Transform.rotate(
+                            angle: -0.2,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                              ),
+                              child: const Text(
+                                'NGỪNG KINH DOANH',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (isOutOfStock)
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.6),
@@ -399,67 +520,68 @@ class ProductCard extends StatelessWidget {
                       ),
                     ),
                     
-                    // Nút yêu thích
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Consumer<FavoriteProvider>(
-                        builder: (context, favoriteProvider, child) {
-                          final isFav = authProvider.isAuthenticated 
-                              ? favoriteProvider.isFavorite(product.productId)
-                              : false;
-                          
-                          return GestureDetector(
-                            onTap: () {
-                              if (!authProvider.isAuthenticated) {
-                                _showLoginRequiredDialog(context);
-                                return;
-                              }
-                              
-                              favoriteProvider.toggleFavorite(product.productId).then((success) {
-                                if (success && context.mounted) {
-                                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        isFav 
-                                            ? 'Đã xóa khỏi yêu thích'
-                                            : 'Đã thêm vào yêu thích',
-                                      ),
-                                      duration: const Duration(seconds: 1),
-                                      behavior: SnackBarBehavior.floating,
-                                      backgroundColor: isFav ? Colors.red : const Color(0xFF2E7D32),
-                                    ),
-                                  );
+                    // Nút yêu thích (không hiển thị nếu ngừng kinh doanh hoặc hết hàng)
+                    if (!isNotTrading && !isOutOfStock)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Consumer<FavoriteProvider>(
+                          builder: (context, favoriteProvider, child) {
+                            final isFav = authProvider.isAuthenticated 
+                                ? favoriteProvider.isFavorite(product.productId)
+                                : false;
+                            
+                            return GestureDetector(
+                              onTap: () {
+                                if (!authProvider.isAuthenticated) {
+                                  _showLoginRequiredDialog(context);
+                                  return;
                                 }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                                
+                                favoriteProvider.toggleFavorite(product.productId).then((success) {
+                                  if (success && context.mounted) {
+                                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          isFav 
+                                              ? 'Đã xóa khỏi yêu thích'
+                                              : 'Đã thêm vào yêu thích',
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                        behavior: SnackBarBehavior.floating,
+                                        backgroundColor: isFav ? Colors.red : const Color(0xFF2E7D32),
+                                      ),
+                                    );
+                                  }
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  isFav ? Icons.favorite : Icons.favorite_border,
+                                  size: 14,
+                                  color: isFav ? Colors.red : const Color(0xFFFF6B6B),
+                                ),
                               ),
-                              child: Icon(
-                                isFav ? Icons.favorite : Icons.favorite_border,
-                                size: 14,
-                                color: isFav ? Colors.red : const Color(0xFFFF6B6B),
-                              ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
                     
                     // Badge số lượng tồn kho
-                    if (!isOutOfStock)
+                    if (!isNotTrading && !isOutOfStock)
                       Positioned(
                         top: 8,
                         left: 8,
@@ -499,7 +621,7 @@ class ProductCard extends StatelessWidget {
                       ),
 
                     // Badge số lượng trong giỏ hàng
-                    if (authProvider.isAuthenticated && isInCart && quantityInCart > 0 && !isOutOfStock)
+                    if (authProvider.isAuthenticated && isInCart && quantityInCart > 0 && !isNotTrading && !isOutOfStock)
                       Positioned(
                         bottom: 8,
                         right: 8,
@@ -541,88 +663,106 @@ class ProductCard extends StatelessWidget {
                 ),
               ),
               
-              // Phần nội dung - giảm tối đa khoảng trắng
+              // Phần nội dung
               Expanded(
-                flex: 3, // Giảm flex xuống 3
+                flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 0), // Giảm padding
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Text(
                         product.productName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF2E3A59),
+                          color: isNotTrading ? Colors.grey[500] : const Color(0xFF2E3A59),
                           letterSpacing: -0.2,
+                          decoration: isNotTrading ? TextDecoration.lineThrough : null,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       
-                      const SizedBox(height: 2), // Giảm từ 4 xuống 2
+                      const SizedBox(height: 2),
                       
                       // Đơn vị và trạng thái tồn kho
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isOutOfStock 
-                                  ? Colors.grey[100] 
-                                  : Colors.green[50],
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(
-                                color: isOutOfStock 
-                                    ? Colors.grey.withOpacity(0.2) 
-                                    : Colors.green.withOpacity(0.2),
-                                width: 0.5,
-                              ),
-                            ),
-                            child: Text(
-                              product.unit,
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: isOutOfStock 
-                                    ? Colors.grey[500] 
-                                    : Colors.green[700],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          if (!isOutOfStock && isLowStock)
+                      if (!isNotTrading)
+                        Row(
+                          children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.orange[50],
+                                color: isOutOfStock 
+                                    ? Colors.grey[100] 
+                                    : Colors.green[50],
                                 borderRadius: BorderRadius.circular(3),
                                 border: Border.all(
-                                  color: Colors.orange.withOpacity(0.2),
+                                  color: isOutOfStock 
+                                      ? Colors.grey.withOpacity(0.2) 
+                                      : Colors.green.withOpacity(0.2),
                                   width: 0.5,
                                 ),
                               ),
                               child: Text(
-                                'Còn ${product.stockQuantity}',
+                                product.unit,
                                 style: TextStyle(
                                   fontSize: 8,
-                                  color: Colors.orange[700],
+                                  color: isOutOfStock 
+                                      ? Colors.grey[500] 
+                                      : Colors.green[700],
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
+                            const SizedBox(width: 4),
+                            if (!isOutOfStock && isLowStock)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange[50],
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: Colors.orange.withOpacity(0.2),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Còn ${product.stockQuantity}',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: Colors.orange[700],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Ngừng kinh doanh',
+                            style: TextStyle(
+                              fontSize: 8,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       
-                      const SizedBox(height: 4), // Giảm từ 6 xuống 4
+                      const SizedBox(height: 4),
                       
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -630,16 +770,17 @@ class ProductCard extends StatelessWidget {
                         children: [
                           Text(
                             _formatCurrency(product.price),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF2E7D32),
+                              color: isNotTrading ? Colors.grey[500] : const Color(0xFF2E7D32),
                               letterSpacing: -0.3,
+                              decoration: isNotTrading ? TextDecoration.lineThrough : null,
                             ),
                           ),
                           
                           // Nút thêm giỏ hàng
-                          if (!isOutOfStock)
+                          if (!isNotTrading && !isOutOfStock)
                             Container(
                               width: 28,
                               height: 28,
@@ -683,10 +824,10 @@ class ProductCard extends StatelessWidget {
                                 color: Colors.grey[300],
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: const Icon(
-                                Icons.block,
+                              child: Icon(
+                                isNotTrading ? Icons.cancel_outlined : Icons.block,
                                 size: 16,
-                                color: Colors.grey,
+                                color: Colors.grey[500],
                               ),
                             ),
                         ],

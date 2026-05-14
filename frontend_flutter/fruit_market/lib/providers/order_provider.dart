@@ -64,16 +64,14 @@ class OrderProvider extends ChangeNotifier {
     }
   }
 
-  // --- CÁC HÀM QUAN TRỌNG CHO CHECKOUT ---
-
   // Mua ngay
   Future<Order?> buyNow({
     required String productId,
     required int quantity,
     required String paymentMethod,
     required String deliveryAddress,
-    required String receiverName,      // Thêm
-    required String receiverPhone,     // Thêm
+    required String receiverName,
+    required String receiverPhone,
     String? voucherCode,
     double shippingFee = 25000,
   }) async {
@@ -85,8 +83,8 @@ class OrderProvider extends ChangeNotifier {
         quantity: quantity,
         paymentMethod: paymentMethod,
         deliveryAddress: deliveryAddress,
-        receiverName: receiverName,      // Thêm
-        receiverPhone: receiverPhone,    // Thêm
+        receiverName: receiverName,
+        receiverPhone: receiverPhone,
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );
@@ -100,12 +98,12 @@ class OrderProvider extends ChangeNotifier {
     }
   }
 
-  // Tạo đơn từ giỏ hàng
+  // Tạo đơn từ giỏ hàng (toàn bộ)
   Future<Order?> createOrderFromCart({
     required String deliveryAddress,
     required String paymentMethod,
-    required String receiverName,      // Thêm
-    required String receiverPhone,     // Thêm
+    required String receiverName,
+    required String receiverPhone,
     String? voucherCode,
     double shippingFee = 25000,
   }) async {
@@ -115,8 +113,40 @@ class OrderProvider extends ChangeNotifier {
       final order = await _orderService.createOrderFromCart(
         deliveryAddress: deliveryAddress,
         paymentMethod: paymentMethod,
-        receiverName: receiverName,      // Thêm
-        receiverPhone: receiverPhone,    // Thêm
+        receiverName: receiverName,
+        receiverPhone: receiverPhone,
+        voucherCode: voucherCode,
+        shippingFee: shippingFee,
+      );
+      await fetchMyOrders(forceRefresh: true);
+      return order;
+    } catch (e) {
+      _setError(e.toString().replaceAll('Exception: ', ''));
+      return null;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // ========== THÊM MỚI: Tạo đơn từ danh sách sản phẩm được chọn ==========
+  Future<Order?> createOrderFromSelectedItems({
+    required List<Map<String, dynamic>> items,
+    required String deliveryAddress,
+    required String paymentMethod,
+    required String receiverName,
+    required String receiverPhone,
+    String? voucherCode,
+    double shippingFee = 25000,
+  }) async {
+    _setLoading(true);
+    _clearError();
+    try {
+      final order = await _orderService.createOrderFromSelectedItems(
+        items: items,
+        deliveryAddress: deliveryAddress,
+        paymentMethod: paymentMethod,
+        receiverName: receiverName,
+        receiverPhone: receiverPhone,
         voucherCode: voucherCode,
         shippingFee: shippingFee,
       );

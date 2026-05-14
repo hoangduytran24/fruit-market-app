@@ -42,14 +42,13 @@ public class ProductService : IProductService
     {
         try
         {
-            // Bắt đầu query
             var query = _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Supplier)
                 .Include(p => p.Reviews)
+                .Include(p => p.Inventories)
                 .AsQueryable();
 
-            // Lọc theo từ khóa (tìm trong tên sản phẩm và mô tả)
             if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
             {
                 query = query.Where(p =>
@@ -57,13 +56,11 @@ public class ProductService : IProductService
                     (p.Description != null && p.Description.Contains(searchDto.Keyword)));
             }
 
-            // Lọc theo danh mục
             if (!string.IsNullOrWhiteSpace(searchDto.CategoryId))
             {
                 query = query.Where(p => p.CategoryId == searchDto.CategoryId);
             }
 
-            // Lọc theo khoảng giá
             if (searchDto.MinPrice.HasValue)
             {
                 query = query.Where(p => p.Price >= searchDto.MinPrice.Value);
@@ -74,43 +71,56 @@ public class ProductService : IProductService
                 query = query.Where(p => p.Price <= searchDto.MaxPrice.Value);
             }
 
-            // Lọc theo tình trạng còn hàng
             if (searchDto.InStock.HasValue && searchDto.InStock.Value)
             {
                 query = query.Where(p => p.StockQuantity > 0);
             }
 
-            // Đếm tổng số bản ghi
             var totalCount = await query.CountAsync();
 
-            // Phân trang
-            var items = await query
+            var products = await query
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((searchDto.Page - 1) * searchDto.PageSize)
                 .Take(searchDto.PageSize)
-                .Select(p => new ProductListDto
+                .ToListAsync();
+
+            var items = new List<ProductListDto>();
+            foreach (var p in products)
+            {
+                var nearestBatch = p.Inventories?
+                    .Where(i => i.Status == "in_stock" && i.Quantity > 0 && i.ExpiryDate > DateTime.Today)
+                    .OrderBy(i => i.ExpiryDate)
+                    .FirstOrDefault();
+
+                items.Add(new ProductListDto
                 {
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
                     CategoryId = p.CategoryId,
-                    CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
+                    CategoryName = p.Category?.CategoryName ?? string.Empty,
                     SupplierId = p.SupplierId,
-                    SupplierName = p.Supplier != null ? p.Supplier.SupplierName : string.Empty,
-                    SupplierAddress = p.Supplier != null ? p.Supplier.Address : string.Empty,  // THÊM DÒNG NÀY
+                    SupplierName = p.Supplier?.SupplierName ?? string.Empty,
+                    SupplierAddress = p.Supplier?.Address ?? string.Empty,
                     Unit = p.Unit,
                     Price = p.Price,
-                    StockQuantity = p.StockQuantity,
+                    StockQuantity = p.StockQuantity,  // SỬA: Dùng stock từ Products
                     ImageUrl = p.ImageUrl,
                     Description = p.Description,
                     IsActive = p.IsActive,
+                    Origin = p.Origin,
                     AverageRating = p.Reviews != null && p.Reviews.Any()
                         ? Math.Round(p.Reviews.Average(r => r.Rating), 1)
                         : 0,
-                    ReviewCount = p.Reviews != null ? p.Reviews.Count : 0
-                })
-                .ToListAsync();
+                    ReviewCount = p.Reviews?.Count ?? 0,
+                    ManufactureDate = nearestBatch?.ManufactureDate,
+                    ExpiryDate = nearestBatch?.ExpiryDate,
+                    DaysToExpiry = nearestBatch != null
+                        ? (nearestBatch.ExpiryDate - DateTime.Today).Days
+                        : 0,
+                    IsExpired = nearestBatch == null
+                });
+            }
 
-            // Tính tổng số trang
             var totalPages = (int)Math.Ceiling(totalCount / (double)searchDto.PageSize);
 
             return new ProductResponseDto
@@ -125,7 +135,7 @@ public class ProductService : IProductService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting products");
-            throw;
+            throw new Exception($"Error getting products: {ex.Message}", ex);
         }
     }
 
@@ -138,10 +148,16 @@ public class ProductService : IProductService
                 .Include(p => p.Supplier)
                 .Include(p => p.Reviews!)
                     .ThenInclude(r => r.User)
+                .Include(p => p.Inventories)
                 .FirstOrDefaultAsync(p => p.ProductId == id);
 
             if (product == null)
                 return null;
+
+            var nearestBatch = product.Inventories?
+                .Where(i => i.Status == "in_stock" && i.Quantity > 0 && i.ExpiryDate > DateTime.Today)
+                .OrderBy(i => i.ExpiryDate)
+                .FirstOrDefault();
 
             var productDto = new ProductDetailDto
             {
@@ -153,11 +169,14 @@ public class ProductService : IProductService
                 SupplierName = product.Supplier?.SupplierName ?? string.Empty,
                 Unit = product.Unit,
                 Price = product.Price,
-                StockQuantity = product.StockQuantity,
+                StockQuantity = product.StockQuantity,  // SỬA: Dùng stock từ Products
                 Description = product.Description,
                 ImageUrl = product.ImageUrl,
                 IsActive = product.IsActive,
                 CreatedAt = product.CreatedAt,
+                Origin = product.Origin,
+                ManufactureDate = nearestBatch?.ManufactureDate,
+                ExpiryDate = nearestBatch?.ExpiryDate,
                 Reviews = product.Reviews != null
                     ? product.Reviews.Select(r => new ReviewDto
                     {
@@ -194,26 +213,44 @@ public class ProductService : IProductService
             var products = await _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Reviews)
+                .Include(p => p.Inventories)
                 .Where(p => p.ProductName.Contains(keyword) && p.IsActive)
                 .OrderBy(p => p.ProductName)
-                .Take(20) // Giới hạn kết quả
-                .Select(p => new ProductListDto
+                .Take(20)
+                .ToListAsync();
+
+            var result = new List<ProductListDto>();
+            foreach (var p in products)
+            {
+                var nearestBatch = p.Inventories?
+                    .Where(i => i.Status == "in_stock" && i.Quantity > 0 && i.ExpiryDate > DateTime.Today)
+                    .OrderBy(i => i.ExpiryDate)
+                    .FirstOrDefault();
+
+                result.Add(new ProductListDto
                 {
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
-                    CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
+                    CategoryName = p.Category?.CategoryName ?? string.Empty,
                     Unit = p.Unit,
                     Price = p.Price,
-                    StockQuantity = p.StockQuantity,
+                    StockQuantity = p.StockQuantity,  // SỬA: Dùng stock từ Products
                     ImageUrl = p.ImageUrl,
+                    Origin = p.Origin,
                     AverageRating = p.Reviews != null && p.Reviews.Any()
                         ? Math.Round(p.Reviews.Average(r => r.Rating), 1)
                         : 0,
-                    ReviewCount = p.Reviews != null ? p.Reviews.Count : 0
-                })
-                .ToListAsync();
+                    ReviewCount = p.Reviews?.Count ?? 0,
+                    ManufactureDate = nearestBatch?.ManufactureDate,
+                    ExpiryDate = nearestBatch?.ExpiryDate,
+                    DaysToExpiry = nearestBatch != null
+                        ? (nearestBatch.ExpiryDate - DateTime.Today).Days
+                        : 0,
+                    IsExpired = nearestBatch == null
+                });
+            }
 
-            return products;
+            return result;
         }
         catch (Exception ex)
         {
@@ -229,25 +266,43 @@ public class ProductService : IProductService
             var products = await _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Reviews)
+                .Include(p => p.Inventories)
                 .Where(p => p.CategoryId == categoryId && p.IsActive)
                 .OrderByDescending(p => p.CreatedAt)
-                .Select(p => new ProductListDto
+                .ToListAsync();
+
+            var result = new List<ProductListDto>();
+            foreach (var p in products)
+            {
+                var nearestBatch = p.Inventories?
+                    .Where(i => i.Status == "in_stock" && i.Quantity > 0 && i.ExpiryDate > DateTime.Today)
+                    .OrderBy(i => i.ExpiryDate)
+                    .FirstOrDefault();
+
+                result.Add(new ProductListDto
                 {
                     ProductId = p.ProductId,
                     ProductName = p.ProductName,
-                    CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
+                    CategoryName = p.Category?.CategoryName ?? string.Empty,
                     Unit = p.Unit,
                     Price = p.Price,
-                    StockQuantity = p.StockQuantity,
+                    StockQuantity = p.StockQuantity,  // SỬA: Dùng stock từ Products
                     ImageUrl = p.ImageUrl,
+                    Origin = p.Origin,
                     AverageRating = p.Reviews != null && p.Reviews.Any()
                         ? Math.Round(p.Reviews.Average(r => r.Rating), 1)
                         : 0,
-                    ReviewCount = p.Reviews != null ? p.Reviews.Count : 0
-                })
-                .ToListAsync();
+                    ReviewCount = p.Reviews?.Count ?? 0,
+                    ManufactureDate = nearestBatch?.ManufactureDate,
+                    ExpiryDate = nearestBatch?.ExpiryDate,
+                    DaysToExpiry = nearestBatch != null
+                        ? (nearestBatch.ExpiryDate - DateTime.Today).Days
+                        : 0,
+                    IsExpired = nearestBatch == null
+                });
+            }
 
-            return products;
+            return result;
         }
         catch (Exception ex)
         {
@@ -256,144 +311,30 @@ public class ProductService : IProductService
         }
     }
 
-    public async Task<IEnumerable<ProductListDto>> GetFeaturedProductsAsync(int count = 8)
-    {
-        try
-        {
-            // Lấy sản phẩm có đánh giá cao và còn hàng
-            var products = await _context.Products
-                .Include(p => p.Category)
-                .Include(p => p.Reviews)
-                .Where(p => p.IsActive && p.StockQuantity > 0)
-                .OrderByDescending(p => p.Reviews != null ? p.Reviews.Average(r => r.Rating) : 0)
-                .ThenByDescending(p => p.CreatedAt)
-                .Take(count)
-                .Select(p => new ProductListDto
-                {
-                    ProductId = p.ProductId,
-                    ProductName = p.ProductName,
-                    CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
-                    Unit = p.Unit,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    ImageUrl = p.ImageUrl,
-                    AverageRating = p.Reviews != null && p.Reviews.Any()
-                        ? Math.Round(p.Reviews.Average(r => r.Rating), 1)
-                        : 0,
-                    ReviewCount = p.Reviews != null ? p.Reviews.Count : 0
-                })
-                .ToListAsync();
-
-            return products;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting featured products");
-            throw;
-        }
-    }
-
-    public async Task<IEnumerable<ProductListDto>> GetNewestProductsAsync(int count = 8)
-    {
-        try
-        {
-            var products = await _context.Products
-                .Include(p => p.Category)
-                .Include(p => p.Reviews)
-                .Where(p => p.IsActive)
-                .OrderByDescending(p => p.CreatedAt)
-                .Take(count)
-                .Select(p => new ProductListDto
-                {
-                    ProductId = p.ProductId,
-                    ProductName = p.ProductName,
-                    CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
-                    Unit = p.Unit,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    ImageUrl = p.ImageUrl,
-                    AverageRating = p.Reviews != null && p.Reviews.Any()
-                        ? Math.Round(p.Reviews.Average(r => r.Rating), 1)
-                        : 0,
-                    ReviewCount = p.Reviews != null ? p.Reviews.Count : 0
-                })
-                .ToListAsync();
-
-            return products;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting newest products");
-            throw;
-        }
-    }
-
-    public async Task<IEnumerable<ProductListDto>> GetBestSellingProductsAsync(int count = 8)
-    {
-        try
-        {
-            // Lấy sản phẩm bán chạy dựa trên số lượng đã bán trong OrderItems
-            var products = await _context.Products
-                .Include(p => p.Category)
-                .Include(p => p.Reviews)
-                .Include(p => p.OrderItems)
-                .Where(p => p.IsActive)
-                .OrderByDescending(p => p.OrderItems != null ? p.OrderItems.Sum(oi => oi.Quantity) : 0)
-                .Take(count)
-                .Select(p => new ProductListDto
-                {
-                    ProductId = p.ProductId,
-                    ProductName = p.ProductName,
-                    CategoryName = p.Category != null ? p.Category.CategoryName : string.Empty,
-                    Unit = p.Unit,
-                    Price = p.Price,
-                    StockQuantity = p.StockQuantity,
-                    ImageUrl = p.ImageUrl,
-                    AverageRating = p.Reviews != null && p.Reviews.Any()
-                        ? Math.Round(p.Reviews.Average(r => r.Rating), 1)
-                        : 0,
-                    ReviewCount = p.Reviews != null ? p.Reviews.Count : 0
-                })
-                .ToListAsync();
-
-            return products;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting best selling products");
-            throw;
-        }
-    }
-
     public async Task<ProductDto> CreateProductAsync(CreateProductDto createDto)
     {
         try
         {
-            // Save image file (if provided) and get relative path
             string? savedImagePath = null;
             if (createDto.ImageFile != null)
             {
                 savedImagePath = await SaveImageFileAsync(createDto.ImageFile, "products");
             }
 
-            // Kiểm tra category tồn tại
             var category = await _context.Categories.FindAsync(createDto.CategoryId);
             if (category == null)
                 throw new Exception($"Category with ID {createDto.CategoryId} not found");
 
-            // Kiểm tra supplier tồn tại
             var supplier = await _context.Suppliers.FindAsync(createDto.SupplierId);
             if (supplier == null)
                 throw new Exception($"Supplier with ID {createDto.SupplierId} not found");
 
-            // Kiểm tra tên sản phẩm đã tồn tại chưa
             var existingProduct = await _context.Products
                 .FirstOrDefaultAsync(p => p.ProductName.ToLower() == createDto.ProductName.ToLower());
 
             if (existingProduct != null)
                 throw new Exception($"Product with name '{createDto.ProductName}' already exists");
 
-            // Tạo ID mới
             string productId;
             int attempt = 0;
             do
@@ -412,9 +353,10 @@ public class ProductService : IProductService
                 ProductName = createDto.ProductName.Trim(),
                 Unit = createDto.Unit,
                 Price = createDto.Price,
-                StockQuantity = createDto.StockQuantity,
+                StockQuantity = 0,
                 Description = createDto.Description,
                 ImageUrl = savedImagePath,
+                Origin = createDto.Origin,
                 IsActive = true,
                 CreatedAt = DateTime.Now
             };
@@ -435,11 +377,12 @@ public class ProductService : IProductService
                 SupplierName = supplier.SupplierName,
                 Unit = product.Unit,
                 Price = product.Price,
-                StockQuantity = product.StockQuantity,
+                StockQuantity = 0,
                 Description = product.Description,
                 ImageUrl = product.ImageUrl,
                 IsActive = product.IsActive,
-                CreatedAt = product.CreatedAt
+                CreatedAt = product.CreatedAt,
+                Origin = product.Origin
             };
         }
         catch (Exception ex)
@@ -449,10 +392,8 @@ public class ProductService : IProductService
         }
     }
 
-    // Helper to generate simple IDs without external dependency
     private static string GenerateId(string prefix)
     {
-        // Produces: PREFIX + yyMMddHHmmss + 3-digit-random (e.g. PR260309123045123)
         var ts = DateTime.UtcNow.ToString("yyMMddHHmmss");
         var rnd = _idRandom.Next(100, 1000);
         return $"{prefix}{ts}{rnd}";
@@ -462,7 +403,6 @@ public class ProductService : IProductService
     {
         try
         {
-            // Save image file first (if provided)
             string? savedImagePath = null;
             if (updateDto.ImageFile != null)
             {
@@ -477,17 +417,14 @@ public class ProductService : IProductService
             if (product == null)
                 throw new Exception($"Product with ID {id} not found");
 
-            // Kiểm tra category tồn tại
             var category = await _context.Categories.FindAsync(updateDto.CategoryId);
             if (category == null)
                 throw new Exception($"Category with ID {updateDto.CategoryId} not found");
 
-            // Kiểm tra supplier tồn tại
             var supplier = await _context.Suppliers.FindAsync(updateDto.SupplierId);
             if (supplier == null)
                 throw new Exception($"Supplier with ID {updateDto.SupplierId} not found");
 
-            // Kiểm tra tên sản phẩm đã tồn tại chưa (trừ chính nó)
             var existingProduct = await _context.Products
                 .FirstOrDefaultAsync(p => p.ProductName.ToLower() == updateDto.ProductName.ToLower()
                     && p.ProductId != id);
@@ -495,14 +432,13 @@ public class ProductService : IProductService
             if (existingProduct != null)
                 throw new Exception($"Product with name '{updateDto.ProductName}' already exists");
 
-            // Cập nhật thông tin
             product.CategoryId = updateDto.CategoryId;
             product.SupplierId = updateDto.SupplierId;
             product.ProductName = updateDto.ProductName.Trim();
             product.Unit = updateDto.Unit;
             product.Price = updateDto.Price;
-            product.StockQuantity = updateDto.StockQuantity;
             product.Description = updateDto.Description;
+            product.Origin = updateDto.Origin;
             if (!string.IsNullOrEmpty(savedImagePath))
             {
                 product.ImageUrl = savedImagePath;
@@ -523,11 +459,12 @@ public class ProductService : IProductService
                 SupplierName = supplier.SupplierName,
                 Unit = product.Unit,
                 Price = product.Price,
-                StockQuantity = product.StockQuantity,
+                StockQuantity = product.StockQuantity,  // SỬA: Dùng stock từ Products
                 Description = product.Description,
                 ImageUrl = product.ImageUrl,
                 IsActive = product.IsActive,
-                CreatedAt = product.CreatedAt
+                CreatedAt = product.CreatedAt,
+                Origin = product.Origin
             };
         }
         catch (Exception ex)
@@ -549,22 +486,17 @@ public class ProductService : IProductService
             if (product == null)
                 throw new Exception($"Product with ID {id} not found");
 
-            // Kiểm tra xem sản phẩm có trong đơn hàng nào không
             if (product.OrderItems != null && product.OrderItems.Any())
             {
-                // Nếu đã có trong đơn hàng, chỉ soft delete
                 product.IsActive = false;
                 _logger.LogInformation("Product soft deleted (has orders): {ProductId}", id);
             }
             else
             {
-                // Nếu chưa có trong đơn hàng nào, có thể xóa cứng
-                // Xóa các cart items trước
                 if (product.CartItems != null && product.CartItems.Any())
                 {
                     _context.CartItems.RemoveRange(product.CartItems);
                 }
-
                 _context.Products.Remove(product);
                 _logger.LogInformation("Product hard deleted: {ProductId}", id);
             }
@@ -579,13 +511,35 @@ public class ProductService : IProductService
         }
     }
 
+    public async Task<bool> UpdateProductStatusAsync(string productId, bool isActive)
+    {
+        try
+        {
+            var product = await _context.Products.FindAsync(productId);
+
+            if (product == null)
+                throw new Exception($"Sản phẩm với ID {productId} không tồn tại");
+
+            product.IsActive = isActive;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Product {productId} status updated to {isActive}");
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error updating product status: {productId}");
+            throw;
+        }
+    }
+
     public async Task<bool> RestoreProductAsync(string id)
     {
         try
         {
-            var product = await _context.Products
-                .FirstOrDefaultAsync(p => p.ProductId == id);
-
+            var product = await _context.Products.FindAsync(id);
             if (product == null)
                 throw new Exception($"Product with ID {id} not found");
 
@@ -640,7 +594,7 @@ public class ProductService : IProductService
         }
     }
 
-    // --- File helpers (moved from FileService) ---
+    // --- File helpers ---
     private string[] GetAllowedExtensions()
     {
         return _configuration.GetSection("FileSettings:AllowedExtensions").Get<string[]>()
@@ -757,13 +711,11 @@ public class ProductService : IProductService
 
         await OptimizeImageAsync(filePath);
 
-        // create 36px scaled image (client expects _scaled_36)
         const int thumbWidth = 36;
         var scaledFileName = GetScaledFileName(fileName, thumbWidth);
         var scaledFilePath = Path.Combine(folderPath, scaledFileName);
         await CreateScaledImageAsync(filePath, scaledFilePath, thumbWidth);
 
-        // SỬA: Trả về ảnh gốc thay vì ảnh scaled
         return Path.Combine(uploadFolder, fileName).Replace("\\", "/");
     }
 }

@@ -5,8 +5,17 @@ import '../providers/order_provider.dart';
 import 'login_screen.dart';
 import 'orders_screen.dart';
 
-class AccountScreen extends StatelessWidget {
+class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
+
+  @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
+  bool _isRefreshing = false;
+  Map<String, int> _orderStats = {};
+  bool _hasLoadedStats = false;
 
   // --- Logic Helpers ---
   String _getInitials(String fullName) {
@@ -32,11 +41,63 @@ class AccountScreen extends StatelessWidget {
     final orders = orderProvider.orders;
     return {
       'pending': orders.where((o) => o.status == 'pending').length,
-      'processing': orders.where((o) => o.status == 'processing').length, // Trạng thái mới
+      'processing': orders.where((o) => o.status == 'processing').length,
       'shipping': orders.where((o) => o.status == 'shipping').length,
       'completed': orders.where((o) => o.status == 'completed').length,
       'cancelled': orders.where((o) => o.status == 'cancelled').length,
     };
+  }
+
+  Future<void> _refreshData() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Refresh order statistics
+      final stats = await _getOrderStatistics(context);
+      
+      if (mounted) {
+        setState(() {
+          _orderStats = stats;
+          _hasLoadedStats = true;
+          _isRefreshing = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Có lỗi khi tải lại dữ liệu: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  Future<void> _loadInitialData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.isAuthenticated && !_hasLoadedStats) {
+      final stats = await _getOrderStatistics(context);
+      if (mounted) {
+        setState(() {
+          _orderStats = stats;
+          _hasLoadedStats = true;
+        });
+      }
+    }
   }
 
   // --- Main Build ---
@@ -57,117 +118,54 @@ class AccountScreen extends StatelessWidget {
         elevation: 0,
         automaticallyImplyLeading: false,
       ),
-      body: isLoggedIn ? _buildLoggedInView(context) : _buildLoggedOutView(context),
+      body: isLoggedIn 
+          ? RefreshIndicator(
+              onRefresh: _refreshData,
+              color: Colors.green,
+              backgroundColor: Colors.white,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildUserHeader(
+                      initials: _getInitials(authProvider.currentUser?.fullName ?? ''),
+                      displayName: _getDisplayName(authProvider.currentUser?.fullName ?? ''),
+                      subInfo: authProvider.currentUser?.email.isNotEmpty == true 
+                              ? authProvider.currentUser!.email 
+                              : _getMaskedPhone(authProvider.currentUser?.phone),
+                      role: authProvider.currentUser?.role ?? 'customer',
+                    ),
+                    const SizedBox(height: 24),
+                    _buildOrderSection(context, _orderStats, _isRefreshing),
+                    const SizedBox(height: 20),
+                    _buildMenuSection([
+                      _buildMenuItem(icon: Icons.person_outline, title: 'Thông tin tài khoản', color: const Color(0xFF0B2A1F), onTap: () {}),
+                      _buildMenuItem(icon: Icons.location_on_outlined, title: 'Địa chỉ giao hàng', color: const Color(0xFFFF9800), badge: '2', onTap: () {}),
+                      _buildMenuItem(icon: Icons.history_outlined, title: 'Lịch sử mua hàng', color: const Color(0xFF9C27B0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersScreen()))),
+                      _buildMenuItem(icon: Icons.favorite_outline, title: 'Yêu thích', color: const Color(0xFFF44336), badge: '12', onTap: () {}),
+                      _buildMenuItem(icon: Icons.card_giftcard_outlined, title: 'Voucher của tôi', color: const Color(0xFFFF6B6B), badge: '3', onTap: () {}),
+                    ]),
+                    const SizedBox(height: 20),
+                    _buildAISuggestion(),
+                    const SizedBox(height: 20),
+                    _buildMenuSection([
+                      _buildMenuItem(icon: Icons.headset_mic_outlined, title: 'Hỗ trợ', color: const Color(0xFF4CAF50), onTap: () {}),
+                      _buildMenuItem(icon: Icons.settings_outlined, title: 'Cài đặt', color: const Color(0xFF607D8B), onTap: () {}),
+                    ]),
+                    const SizedBox(height: 24),
+                    _buildLogoutButton(context),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            )
+          : _buildLoggedOutView(context),
     );
   }
 
   // --- Giao diện KHI ĐÃ đăng nhập ---
-  Widget _buildLoggedInView(BuildContext context) {
-    final user = Provider.of<AuthProvider>(context).currentUser;
-    final fullName = user?.fullName ?? '';
-    final email = user?.email ?? '';
-    final phone = user?.phone ?? '';
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          _buildUserHeader(
-            initials: _getInitials(fullName),
-            displayName: _getDisplayName(fullName),
-            subInfo: email.isNotEmpty ? email : _getMaskedPhone(phone),
-            role: user?.role ?? 'customer',
-          ),
-          const SizedBox(height: 24),
-          FutureBuilder<Map<String, int>>(
-            future: _getOrderStatistics(context),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return _buildLoadingContainer();
-              final stats = snapshot.data!;
-              return _buildOrderSection(context, stats);
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildMenuSection([
-            _buildMenuItem(icon: Icons.person_outline, title: 'Thông tin tài khoản', color: const Color(0xFF0B2A1F), onTap: () {}),
-            _buildMenuItem(icon: Icons.location_on_outlined, title: 'Địa chỉ giao hàng', color: const Color(0xFFFF9800), badge: '2', onTap: () {}),
-            _buildMenuItem(icon: Icons.history_outlined, title: 'Lịch sử mua hàng', color: const Color(0xFF9C27B0), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersScreen()))),
-            _buildMenuItem(icon: Icons.favorite_outline, title: 'Yêu thích', color: const Color(0xFFF44336), badge: '12', onTap: () {}),
-            _buildMenuItem(icon: Icons.card_giftcard_outlined, title: 'Voucher của tôi', color: const Color(0xFFFF6B6B), badge: '3', onTap: () {}),
-          ]),
-          const SizedBox(height: 20),
-          _buildAISuggestion(),
-          const SizedBox(height: 20),
-          _buildMenuSection([
-            _buildMenuItem(icon: Icons.headset_mic_outlined, title: 'Hỗ trợ', color: const Color(0xFF4CAF50), onTap: () {}),
-            _buildMenuItem(icon: Icons.settings_outlined, title: 'Cài đặt', color: const Color(0xFF607D8B), onTap: () {}),
-          ]),
-          const SizedBox(height: 24),
-          _buildLogoutButton(context),
-          const SizedBox(height: 40),
-        ],
-      ),
-    );
-  }
-
-  // --- Giao diện CHƯA đăng nhập ---
-  Widget _buildLoggedOutView(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE8F5E9),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.account_circle_outlined,
-                size: 60,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'Vui lòng đăng nhập',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Đăng nhập để xem thông tin cá nhân và quản lý đơn hàng của bạn',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen())),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text(
-                  'Đăng nhập ngay',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Sub-Widgets ---
   Widget _buildUserHeader({required String initials, required String displayName, required String subInfo, required String role}) {
     return Container(
       width: double.infinity,
@@ -208,7 +206,15 @@ class AccountScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOrderSection(BuildContext context, Map<String, int> stats) {
+  Widget _buildOrderSection(BuildContext context, Map<String, int> stats, bool isRefreshing) {
+    if (!_hasLoadedStats && stats.isEmpty && !isRefreshing) {
+      return Container(
+        height: 120,
+        decoration: _cardDecoration(),
+        child: const Center(child: CircularProgressIndicator(color: Color(0xFF1B5E20))),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
       decoration: _cardDecoration(),
@@ -222,7 +228,7 @@ class AccountScreen extends StatelessWidget {
                 const Text('Đơn hàng của tôi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 TextButton(
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersScreen())),
-                  child: const Text('Xem tất cả', style: TextStyle(color: Color(0xFF0B2A1F))),
+                  child: const Text('Lịch sử đơn hàng', style: TextStyle(color: Color(0xFF0B2A1F))),
                 ),
               ],
             ),
@@ -247,7 +253,7 @@ class AccountScreen extends StatelessWidget {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrdersScreen(initialStatus: status))),
       child: SizedBox(
-        width: 65, // Giới hạn chiều rộng để 5 icon nằm vừa
+        width: 65,
         child: Column(
           children: [
             Stack(
@@ -358,11 +364,63 @@ class AccountScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLoadingContainer() {
-    return Container(
-      height: 120,
-      decoration: _cardDecoration(),
-      child: const Center(child: CircularProgressIndicator(color: Color(0xFF1B5E20))),
+  // --- Giao diện CHƯA đăng nhập ---
+  Widget _buildLoggedOutView(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE8F5E9),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.account_circle_outlined,
+                size: 60,
+                color: Color(0xFF4CAF50),
+              ),
+            ),
+            const SizedBox(height: 30),
+            const Text(
+              'Vui lòng đăng nhập',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Đăng nhập để xem thông tin cá nhân và quản lý đơn hàng của bạn',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () => Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (_) => const LoginScreen())
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Đăng nhập ngay',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -379,6 +437,12 @@ class AccountScreen extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(context);
               await Provider.of<AuthProvider>(context, listen: false).logout();
+              if (mounted) {
+                setState(() {
+                  _hasLoadedStats = false;
+                  _orderStats = {};
+                });
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B6B)),
             child: const Text('Đăng xuất', style: TextStyle(color: Colors.white)),

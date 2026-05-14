@@ -11,8 +11,17 @@
   final bool isActive;
   final DateTime createdAt;
   final String? categoryName;
-  final String? supplierName;      // THÊM supplierName
-  final String? supplierAddress;   // THÊM supplierAddress
+  final String? supplierName;
+  final String? supplierAddress;
+  
+  // THÊM TRƯỜNG NÀY - Xuất xứ
+  final String? origin;
+  
+  // THÊM 4 TRƯỜNG NÀY
+  final DateTime? manufactureDate;
+  final DateTime? expiryDate;
+  final int daysToExpiry;
+  final bool isExpired;
 
   Product({
     required this.productId,
@@ -27,8 +36,13 @@
     required this.isActive,
     required this.createdAt,
     this.categoryName,
-    this.supplierName,              // THÊM VÀO CONSTRUCTOR
-    this.supplierAddress,           // THÊM VÀO CONSTRUCTOR
+    this.supplierName,              
+    this.supplierAddress,
+    this.origin,  // THÊM NÀY
+    this.manufactureDate,
+    this.expiryDate,
+    this.daysToExpiry = 0,
+    this.isExpired = false,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -47,8 +61,17 @@
           ? DateTime.parse(json['createdAt']) 
           : DateTime.now(),
       categoryName: json['categoryName'],
-      supplierName: json['supplierName'],      // THÊM DÒNG NÀY
-      supplierAddress: json['supplierAddress'], // THÊM DÒNG NÀY
+      supplierName: json['supplierName'],      
+      supplierAddress: json['supplierAddress'],
+      origin: json['origin'],  // THÊM NÀY
+      manufactureDate: json['manufactureDate'] != null 
+          ? DateTime.parse(json['manufactureDate']) 
+          : null,
+      expiryDate: json['expiryDate'] != null 
+          ? DateTime.parse(json['expiryDate']) 
+          : null,
+      daysToExpiry: json['daysToExpiry'] ?? 0,
+      isExpired: json['isExpired'] ?? false,
     );
   }
 
@@ -66,8 +89,13 @@
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
       'categoryName': categoryName,
-      'supplierName': supplierName,      // THÊM DÒNG NÀY
-      'supplierAddress': supplierAddress, // THÊM DÒNG NÀY
+      'supplierName': supplierName,
+      'supplierAddress': supplierAddress,
+      'origin': origin,  // THÊM NÀY
+      'manufactureDate': manufactureDate?.toIso8601String().split('T').first,
+      'expiryDate': expiryDate?.toIso8601String().split('T').first,
+      'daysToExpiry': daysToExpiry,
+      'isExpired': isExpired,
     };
   }
 }

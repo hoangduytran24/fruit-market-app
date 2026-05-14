@@ -154,6 +154,27 @@ public class OrdersController : ControllerBase
         }
     }
 
+    // ========== THÊM MỚI: Tạo đơn hàng từ danh sách sản phẩm được chọn ==========
+    [HttpPost("from-selected-items")]
+    public async Task<IActionResult> CreateOrderFromSelectedItems([FromBody] CreateOrderFromSelectedItemsDto createOrderDto)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (createOrderDto.ShippingFee == 0)
+            {
+                createOrderDto.ShippingFee = 25000;
+            }
+            var order = await _orderService.CreateOrderFromSelectedItemsAsync(userId, createOrderDto);
+            return Ok(order);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+    // ===========================================================================
+
     /// <summary>
     /// Cập nhật trạng thái đơn hàng (chỉ admin)
     /// </summary>

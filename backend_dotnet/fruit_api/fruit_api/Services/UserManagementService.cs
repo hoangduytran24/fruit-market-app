@@ -9,10 +9,19 @@ namespace fruit_api.Services;
 public class UserManagementService : IUserManagementService
 {
     private readonly ApplicationDbContext _context;
+    private static readonly Random _idRandom = new();
 
     public UserManagementService(ApplicationDbContext context)
     {
         _context = context;
+    }
+
+    // Hàm GenerateId giống như trong ProductService
+    private static string GenerateId(string prefix)
+    {
+        var ts = DateTime.UtcNow.ToString("yyMMddHHmmss");
+        var rnd = _idRandom.Next(100, 1000);
+        return $"{prefix}{ts}{rnd}";
     }
 
     public async Task<IEnumerable<UserDto>> GetUsersAsync(string? search = null, string? role = null)
@@ -99,33 +108,49 @@ public class UserManagementService : IUserManagementService
 
     public async Task<UserDto> CreateAdminAsync(CreateAdminDto createAdminDto)
     {
-        // Kiểm tra email đã tồn tại
-        var existingUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == createAdminDto.Email);
+        var email = createAdminDto.Email?.Trim().ToLower();
+        var phone = createAdminDto.Phone?.Trim();
 
-        if (existingUser != null)
-            throw new Exception("Email already exists");
+        // Kiểm tra email đã tồn tại
+        if (!string.IsNullOrEmpty(email))
+        {
+            var emailExists = await _context.Users
+                .AnyAsync(u => u.Email != null && u.Email.ToLower() == email);
+
+            if (emailExists)
+                throw new Exception("Email đã được sử dụng");
+        }
+
+        // Kiểm tra SỐ ĐIỆN THOẠI
+        if (!string.IsNullOrEmpty(phone))
+        {
+            var phoneExists = await _context.Users
+                .AnyAsync(u => u.Phone != null && u.Phone == phone);
+
+            if (phoneExists)
+                throw new Exception("Số điện thoại đã được sử dụng");
+        }
 
         // Tạo ID user mới
-        var lastUser = await _context.Users
-            .OrderByDescending(u => u.UserId)
-            .FirstOrDefaultAsync();
-
-        int nextNumber = 1;
-        if (lastUser != null && lastUser.UserId.Length > 2)
+        string userId;
+        int attempt = 0;
+        do
         {
-            int.TryParse(lastUser.UserId.Substring(2), out nextNumber);
-            nextNumber++;
-        }
-        var userId = "US" + nextNumber.ToString("D4");
+            userId = GenerateId("US");
+            attempt++;
+
+            if (attempt > 10)
+                throw new Exception("Không thể tạo ID user");
+
+        } while (await _context.Users.AnyAsync(u => u.UserId == userId));
 
         // Tạo admin
         var user = new User
         {
             UserId = userId,
-            FullName = createAdminDto.FullName,
-            Email = createAdminDto.Email,
-            Phone = createAdminDto.Phone,
+            FullName = createAdminDto.FullName.Trim(),
+            Email = email,
+            Phone = phone,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(createAdminDto.Password),
             Role = "admin",
             Status = "active",

@@ -316,6 +316,9 @@ class _OrderCard extends StatelessWidget {
   static const _textDark = Color(0xFF2C3E2F);
   static const _textLight = Color(0xFF7C9A7E);
   static const _borderLight = Color(0xFFE8F0E8);
+  
+  // Lưu ý: Backend đã cộng phí ship 25k vào totalAmount và finalAmount
+  // Nên hiển thị trực tiếp finalAmount là tổng tiền đã bao gồm ship
 
   const _OrderCard({
     required this.order,
@@ -540,7 +543,7 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  // Footer với nút Chi tiết thiết kế nhỏ gọn, đẹp - ĐÃ BỎ NÚT HỦY
+  // Footer với nút Chi tiết - Hiển thị tổng tiền đã bao gồm phí ship
   Widget _buildFooter(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -550,7 +553,7 @@ class _OrderCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Tổng tiền
+          // Tổng tiền (đã bao gồm phí ship)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -560,7 +563,7 @@ class _OrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                formatCurrency(order.finalAmount + 25000),
+                formatCurrency(order.finalAmount), // Đã bao gồm phí ship 25k
                 style: const TextStyle(
                   fontSize: 18, 
                   fontWeight: FontWeight.bold, 
@@ -570,7 +573,7 @@ class _OrderCard extends StatelessWidget {
             ],
           ),
           
-          // Nút Chi tiết - thiết kế nhỏ gọn
+          // Nút Chi tiết
           GestureDetector(
             onTap: () {
               Navigator.push(

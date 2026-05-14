@@ -16,15 +16,6 @@ public interface IProductService
     // Lấy sản phẩm theo danh mục
     Task<IEnumerable<ProductListDto>> GetProductsByCategoryAsync(string categoryId);
 
-    // Lấy sản phẩm nổi bật
-    Task<IEnumerable<ProductListDto>> GetFeaturedProductsAsync(int count = 8);
-
-    // Lấy sản phẩm mới nhất
-    Task<IEnumerable<ProductListDto>> GetNewestProductsAsync(int count = 8);
-
-    // Lấy sản phẩm bán chạy
-    Task<IEnumerable<ProductListDto>> GetBestSellingProductsAsync(int count = 8);
-
     // Thêm sản phẩm mới
     Task<ProductDto> CreateProductAsync(CreateProductDto createDto);
 
@@ -33,6 +24,9 @@ public interface IProductService
 
     // Xóa sản phẩm (soft delete)
     Task<bool> DeleteProductAsync(string id);
+
+    // Cập nhật trạng thái sản phẩm
+    Task<bool> UpdateProductStatusAsync(string productId, bool isActive);
 
     // Khôi phục sản phẩm đã xóa
     Task<bool> RestoreProductAsync(string id);

@@ -18,9 +18,6 @@ public class FavoritesController : ControllerBase
         _favoriteService = favoriteService;
     }
 
-    /// <summary>
-    /// Lấy danh sách sản phẩm yêu thích
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetMyFavorites()
     {
@@ -39,9 +36,6 @@ public class FavoritesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Thêm sản phẩm vào yêu thích
-    /// </summary>
     [HttpPost]
     public async Task<IActionResult> AddFavorite(CreateFavoriteDto createDto)
     {
@@ -63,9 +57,7 @@ public class FavoritesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Xóa sản phẩm khỏi yêu thích
-    /// </summary>
+
     [HttpDelete("{productId}")]
     public async Task<IActionResult> RemoveFavorite(string productId)
     {

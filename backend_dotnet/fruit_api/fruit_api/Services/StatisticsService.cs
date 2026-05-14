@@ -18,15 +18,20 @@ public class StatisticsService : IStatisticsService
     {
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
+        var firstDayOfMonth = new DateTime(today.Year, today.Month, 1);
+        var firstDayOfNextMonth = firstDayOfMonth.AddMonths(1);
 
         var dashboard = new DashboardStatisticsDto
         {
             TotalOrders = await _context.Orders.CountAsync(),
             TotalUsers = await _context.Users.CountAsync(),
             TotalProducts = await _context.Products.CountAsync(),
+            //TotalRevenue = await _context.Orders
+            //    .Where(o => o.Status == "completed")
+            //    .SumAsync(o => (decimal)o.FinalAmount),
             TotalRevenue = await _context.Orders
-                .Where(o => o.Status == "completed")
-                .SumAsync(o => (decimal)o.FinalAmount),
+            .Where(o => o.Status == "completed" && o.CreatedAt >= firstDayOfMonth && o.CreatedAt < firstDayOfNextMonth)
+            .SumAsync(o => (decimal)o.FinalAmount),
             TodayRevenue = await _context.Orders
                 .Where(o => o.Status == "completed" && o.CreatedAt >= today && o.CreatedAt < tomorrow)
                 .SumAsync(o => (decimal)o.FinalAmount),

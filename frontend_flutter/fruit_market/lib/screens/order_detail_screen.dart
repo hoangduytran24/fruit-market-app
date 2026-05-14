@@ -19,7 +19,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isLoadingDetails = true;
   Order? _orderDetails;
   
-  // Phí vận chuyển cố định
+  // Phí vận chuyển cố định (chỉ dùng để hiển thị)
   static const double _shippingFee = 25000;
 
   @override
@@ -221,6 +221,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final order = _orderDetails ?? widget.order;
+    
+    // Tính toán hiển thị:
+    // Tạm tính = totalAmount (đã bao gồm phí ship từ backend)
+    // Phí ship = 25k
+    // Thành tiền = totalAmount (đã bao gồm ship)
+    // Nhưng để hiển thị rõ ràng, ta tách:
+    // - Tiền hàng = totalAmount - shippingFee
+    // - Phí ship = 25000
+    // - Tổng = totalAmount
+    
+    final subtotal = order.totalAmount - _shippingFee; // Tiền hàng (chưa ship)
+    final hasDiscount = order.discountAmount > 0;
+    final finalTotal = order.totalAmount; // Đã bao gồm ship và giảm giá
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -365,7 +378,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  // ========== THÔNG TIN NGƯỜI NHẬN (LẤY TỪ RECEIVER) ==========
+                  // ========== THÔNG TIN NGƯỜI NHẬN ==========
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -423,11 +436,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       ],
                     ),
                   ),
-                  // ===========================================================
 
                   const SizedBox(height: 16),
 
-                  // Thông tin thanh toán - THÊM PHÍ SHIP
+                  // Thông tin thanh toán - HIỂN THỊ ĐÚNG PHÍ SHIP
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -483,9 +495,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         const SizedBox(height: 12),
                         _buildInfoRow(
                           label: 'Tạm tính',
-                          value: _formatCurrency(order.totalAmount),
+                          value: _formatCurrency(subtotal), // Tiền hàng (chưa ship)
                         ),
-                        if (order.discountAmount > 0) ...[
+                        if (hasDiscount) ...[
                           const SizedBox(height: 12),
                           _buildInfoRow(
                             label: 'Giảm giá',
@@ -513,7 +525,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                               ),
                             ),
                             Text(
-                              _formatCurrency(order.finalAmount + _shippingFee),
+                              _formatCurrency(finalTotal), // Đã bao gồm ship và giảm giá
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,

@@ -8,6 +8,7 @@ class Cart {
   final List<CartItem> items;
   final int totalItems;
   final double totalPrice;
+  final bool hasAutoCorrected; // ✅ Thêm flag này
 
   Cart({
     required this.cartId,
@@ -17,6 +18,7 @@ class Cart {
     required this.items,
     required this.totalItems,
     required this.totalPrice,
+    this.hasAutoCorrected = false, // ✅ Mặc định là false
   });
 
   factory Cart.fromJson(Map<String, dynamic> json) {
@@ -36,6 +38,7 @@ class Cart {
           : [],
       totalItems: json['totalItems'] ?? 0,
       totalPrice: (json['totalPrice'] ?? 0).toDouble(),
+      hasAutoCorrected: json['hasAutoCorrected'] ?? false, // ✅ Parse flag
     );
   }
 
@@ -48,6 +51,7 @@ class Cart {
       'items': items.map((e) => e.toJson()).toList(),
       'totalItems': totalItems,
       'totalPrice': totalPrice,
+      'hasAutoCorrected': hasAutoCorrected, // ✅ Thêm vào toJson
     };
   }
 }

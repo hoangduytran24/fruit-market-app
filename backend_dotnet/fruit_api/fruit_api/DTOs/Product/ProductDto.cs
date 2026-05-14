@@ -12,7 +12,7 @@ public class ProductDto
     public string CategoryName { get; set; } = string.Empty;
     public string SupplierId { get; set; } = string.Empty;
     public string SupplierName { get; set; } = string.Empty;
-    public string SupplierAddress { get; set; } = string.Empty;  // THÊM DÒNG NÀY
+    public string SupplierAddress { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int StockQuantity { get; set; }
@@ -20,6 +20,13 @@ public class ProductDto
     public string? ImageUrl { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    public string? Origin { get; set; }
+
+    public DateTime? ManufactureDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    public int DaysToExpiry { get; set; }
+    public bool IsExpired { get; set; }
 }
 
 public class ProductListDto
@@ -30,7 +37,7 @@ public class ProductListDto
     public string CategoryName { get; set; } = string.Empty;
     public string SupplierId { get; set; } = string.Empty;
     public string SupplierName { get; set; } = string.Empty;
-    public string SupplierAddress { get; set; } = string.Empty;  // THÊM DÒNG NÀY
+    public string SupplierAddress { get; set; } = string.Empty;
     public string Unit { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int StockQuantity { get; set; }
@@ -39,6 +46,13 @@ public class ProductListDto
     public double AverageRating { get; set; }
     public int ReviewCount { get; set; }
     public bool IsActive { get; set; }
+
+    public string? Origin { get; set; }
+
+    public DateTime? ManufactureDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+    public int DaysToExpiry { get; set; }
+    public bool IsExpired { get; set; }
 }
 
 public class ProductDetailDto : ProductDto
@@ -68,10 +82,14 @@ public class CreateProductDto
     [Range(0, double.MaxValue, ErrorMessage = "Price must be greater than or equal to 0")]
     public decimal Price { get; set; }
 
-    [Range(0, int.MaxValue, ErrorMessage = "Stock quantity must be greater than or equal to 0")]
-    public int StockQuantity { get; set; }
+    //[Range(0, int.MaxValue, ErrorMessage = "Stock quantity must be greater than or equal to 0")]
+    //public int StockQuantity { get; set; }
 
     public string? Description { get; set; }
+
+    // THÊM DÒNG NÀY - Xu?t x?
+    [MaxLength(100, ErrorMessage = "Origin cannot exceed 100 characters")]
+    public string? Origin { get; set; }
 
     // removed manual ImageUrl input: only file upload is allowed when creating
     public IFormFile? ImageFile { get; set; }
@@ -97,10 +115,14 @@ public class UpdateProductDto
     [Range(0, double.MaxValue, ErrorMessage = "Price must be greater than or equal to 0")]
     public decimal Price { get; set; }
 
-    [Range(0, int.MaxValue, ErrorMessage = "Stock quantity must be greater than or equal to 0")]
-    public int StockQuantity { get; set; }
+    //[Range(0, int.MaxValue, ErrorMessage = "Stock quantity must be greater than or equal to 0")]
+    //public int StockQuantity { get; set; }
 
     public string? Description { get; set; }
+
+    // THÊM DÒNG NÀY - Xu?t x?
+    [MaxLength(100, ErrorMessage = "Origin cannot exceed 100 characters")]
+    public string? Origin { get; set; }
 
     // removed manual ImageUrl input: use ImageFile to update the product image
     public IFormFile? ImageFile { get; set; }
@@ -126,4 +148,9 @@ public class ProductResponseDto
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalPages { get; set; }
+}
+
+public class UpdateProductStatusDto
+{
+    public bool IsActive { get; set; }
 }

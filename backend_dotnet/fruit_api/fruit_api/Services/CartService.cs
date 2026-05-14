@@ -30,19 +30,16 @@ public class CartService : ICartService
 
         if (lastCart != null && !string.IsNullOrEmpty(lastCart.CartId) && lastCart.CartId.Length >= 6)
         {
-            string numberPart = lastCart.CartId.Substring(2); // Bỏ 2 ký tự đầu "CT"
+            string numberPart = lastCart.CartId.Substring(2);
             if (int.TryParse(numberPart, out int lastNumber))
             {
                 nextNumber = lastNumber + 1;
             }
         }
 
-        return "CT" + nextNumber.ToString("D4"); // CT0001, CT0002...
+        return "CT" + nextNumber.ToString("D4");
     }
 
-    // ===============================
-    // Generate CartItemId: CI0001, CI0002...
-    // ===============================
     private async Task<string> GenerateCartItemId()
     {
         var lastItem = await _context.CartItems
@@ -53,19 +50,16 @@ public class CartService : ICartService
 
         if (lastItem != null && !string.IsNullOrEmpty(lastItem.CartItemId) && lastItem.CartItemId.Length >= 6)
         {
-            string numberPart = lastItem.CartItemId.Substring(2); // Bỏ 2 ký tự đầu "CI"
+            string numberPart = lastItem.CartItemId.Substring(2);
             if (int.TryParse(numberPart, out int lastNumber))
             {
                 nextNumber = lastNumber + 1;
             }
         }
 
-        return "CI" + nextNumber.ToString("D4"); // CI0001, CI0002...
+        return "CI" + nextNumber.ToString("D4");
     }
 
-    // ===============================
-    // Get or Create Cart
-    // ===============================
     private async Task<Cart> GetOrCreateCartAsync(string userId)
     {
         var cart = await _context.Carts
@@ -94,7 +88,7 @@ public class CartService : ICartService
     }
 
     // ===============================
-    // Get Cart
+    // Get Cart - Lấy stock real-time từ Products
     // ===============================
     public async Task<CartDto> GetCartAsync(string userId)
     {
@@ -127,12 +121,13 @@ public class CartService : ICartService
                     ProductName = ci.Product?.ProductName ?? string.Empty,
                     ImageUrl = ci.Product?.ImageUrl,
                     Unit = ci.Product?.Unit ?? string.Empty,
-                    Price = ci.PriceAtTime,
+                    stockQuantity = ci.Product?.StockQuantity ?? 0, // ✅ Stock real-time từ Product
+                    Price = ci.Product?.Price ?? ci.PriceAtTime,    // ✅ Giá real-time từ Product
                     Quantity = ci.Quantity,
-                    Subtotal = ci.Quantity * ci.PriceAtTime
+                    Subtotal = ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)
                 }).ToList() ?? new List<CartItemDto>(),
                 TotalItems = cart.CartItems?.Sum(ci => ci.Quantity) ?? 0,
-                TotalPrice = cart.CartItems?.Sum(ci => ci.Quantity * ci.PriceAtTime) ?? 0
+                TotalPrice = cart.CartItems?.Sum(ci => ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)) ?? 0
             };
 
             return cartDto;
@@ -145,7 +140,83 @@ public class CartService : ICartService
     }
 
     // ===============================
-    // Add product to cart
+    // Get Cart with Auto-Correct - Tự động điều chỉnh số lượng nếu vượt stock
+    // ===============================
+    public async Task<CartDto> GetCartWithAutoCorrectAsync(string userId)
+    {
+        try
+        {
+            _logger.LogInformation("Getting cart with auto-correct for user: {UserId}", userId);
+
+            var cart = await _context.Carts
+                .Include(c => c.CartItems!)
+                    .ThenInclude(ci => ci.Product)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (cart == null)
+            {
+                cart = await GetOrCreateCartAsync(userId);
+                return await GetCartAsync(userId);
+            }
+
+            bool hasChanges = false;
+
+            // Kiểm tra và tự động điều chỉnh số lượng nếu vượt stock
+            foreach (var item in cart.CartItems ?? new List<CartItem>())
+            {
+                if (item.Product != null && item.Quantity > item.Product.StockQuantity)
+                {
+                    var oldQuantity = item.Quantity;
+                    var newQuantity = item.Product.StockQuantity;
+
+                    item.Quantity = newQuantity;
+                    hasChanges = true;
+
+                    _logger.LogInformation(
+                        "Auto-corrected cart item {CartItemId}: quantity from {OldQuantity} to {NewQuantity} (stock: {Stock}, product: {ProductName})",
+                        item.CartItemId, oldQuantity, newQuantity, item.Product.StockQuantity, item.Product.ProductName);
+                }
+            }
+
+            if (hasChanges)
+            {
+                cart.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+
+            var cartDto = new CartDto
+            {
+                CartId = cart.CartId,
+                UserId = cart.UserId,
+                UpdatedAt = cart.UpdatedAt,
+                Items = cart.CartItems?.Select(ci => new CartItemDto
+                {
+                    CartItemId = ci.CartItemId,
+                    ProductId = ci.ProductId,
+                    ProductName = ci.Product?.ProductName ?? string.Empty,
+                    ImageUrl = ci.Product?.ImageUrl,
+                    Unit = ci.Product?.Unit ?? string.Empty,
+                    stockQuantity = ci.Product?.StockQuantity ?? 0,
+                    Price = ci.Product?.Price ?? ci.PriceAtTime,
+                    Quantity = ci.Quantity,
+                    Subtotal = ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)
+                }).ToList() ?? new List<CartItemDto>(),
+                TotalItems = cart.CartItems?.Sum(ci => ci.Quantity) ?? 0,
+                TotalPrice = cart.CartItems?.Sum(ci => ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)) ?? 0,
+                HasAutoCorrected = hasChanges  // ✅ Thêm flag để frontend biết
+            };
+
+            return cartDto;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cart with auto-correct for user: {UserId}", userId);
+            throw new Exception($"Error getting cart: {ex.Message}");
+        }
+    }
+
+    // ===============================
+    // Add product to cart - Đã sửa kiểm tra stock chính xác
     // ===============================
     public async Task<CartDto> AddToCartAsync(string userId, AddToCartDto addToCartDto)
     {
@@ -156,7 +227,7 @@ public class CartService : ICartService
 
             // Validate input
             if (addToCartDto.Quantity <= 0)
-                throw new Exception("Quantity must be greater than 0");
+                throw new Exception("Số lượng phải lớn hơn 0");
 
             if (string.IsNullOrEmpty(addToCartDto.ProductId))
                 throw new Exception("Product ID is required");
@@ -164,71 +235,76 @@ public class CartService : ICartService
             // Get or create cart
             var cart = await GetOrCreateCartAsync(userId);
 
-            // Check product exists
+            // Check product exists and get latest stock
             var product = await _context.Products
                 .FirstOrDefaultAsync(p => p.ProductId == addToCartDto.ProductId);
 
             if (product == null)
             {
                 _logger.LogWarning("Product not found: {ProductId}", addToCartDto.ProductId);
-                throw new Exception($"Product with ID {addToCartDto.ProductId} not found");
+                throw new Exception($"Sản phẩm với ID {addToCartDto.ProductId} không tồn tại");
             }
 
             if (!product.IsActive)
             {
                 _logger.LogWarning("Product is not active: {ProductId}", addToCartDto.ProductId);
-                throw new Exception("Product is not available");
-            }
-
-            if (product.StockQuantity < addToCartDto.Quantity)
-            {
-                _logger.LogWarning("Not enough stock. Product: {ProductId}, Requested: {Requested}, Available: {Available}",
-                    addToCartDto.ProductId, addToCartDto.Quantity, product.StockQuantity);
-                throw new Exception($"Not enough stock. Available: {product.StockQuantity}");
+                throw new Exception("Sản phẩm hiện không khả dụng");
             }
 
             // Check if product already in cart
             var existingItem = cart.CartItems?
                 .FirstOrDefault(ci => ci.ProductId == addToCartDto.ProductId);
 
+            int currentQuantity = existingItem?.Quantity ?? 0;
+            int totalQuantity = currentQuantity + addToCartDto.Quantity;
+
+            // ✅ TÍNH SỐ LƯỢNG TỐI ĐA CÓ THỂ THÊM
+            int maxAddable = product.StockQuantity - currentQuantity;
+
+            if (maxAddable <= 0)
+            {
+                throw new Exception($"Bạn đã có {currentQuantity} sản phẩm trong giỏ. Không thể thêm sản phẩm này nữa vì đã đạt tối đa tồn kho ({product.StockQuantity}).");
+            }
+
+            if (addToCartDto.Quantity > maxAddable)
+            {
+                throw new Exception($"Bạn chỉ có thể thêm tối đa {maxAddable} sản phẩm nữa. Hiện tại bạn đã có {currentQuantity} sản phẩm, tồn kho còn {product.StockQuantity}.");
+            }
+
+            if (totalQuantity > product.StockQuantity)
+            {
+                throw new Exception($"Không thể thêm {addToCartDto.Quantity} sản phẩm. Bạn đã có {currentQuantity} trong giỏ, tồn kho chỉ còn {product.StockQuantity}. Bạn chỉ có thể thêm tối đa {maxAddable} sản phẩm.");
+            }
+
+            // Update or create cart item
             if (existingItem != null)
             {
-                _logger.LogInformation("Updating existing cart item. Current quantity: {CurrentQuantity}, Adding: {AddingQuantity}",
-                    existingItem.Quantity, addToCartDto.Quantity);
-
-                existingItem.Quantity += addToCartDto.Quantity;
+                existingItem.Quantity = totalQuantity;
                 existingItem.PriceAtTime = product.Price;
+                _logger.LogInformation("Updated existing cart item. New quantity: {Quantity}", totalQuantity);
             }
             else
             {
-                _logger.LogInformation("Creating new cart item");
-
-                // Tạo CartItemId mới
                 string cartItemId = await GenerateCartItemId();
-
                 var cartItem = new CartItem
                 {
                     CartItemId = cartItemId,
                     CartId = cart.CartId,
                     ProductId = addToCartDto.ProductId,
-                    Quantity = addToCartDto.Quantity,
+                    Quantity = totalQuantity,
                     PriceAtTime = product.Price
                 };
                 _context.CartItems.Add(cartItem);
+                _logger.LogInformation("Created new cart item with ID: {CartItemId}", cartItemId);
             }
 
             cart.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Successfully added to cart. User: {UserId}, Product: {ProductId}",
-                userId, addToCartDto.ProductId);
+            _logger.LogInformation("Successfully added to cart. User: {UserId}, Product: {ProductId}, Final quantity: {FinalQuantity}",
+                userId, addToCartDto.ProductId, totalQuantity);
 
             return await GetCartAsync(userId);
-        }
-        catch (DbUpdateException ex)
-        {
-            _logger.LogError(ex, "Database error while adding to cart. Inner: {InnerException}", ex.InnerException?.Message);
-            throw new Exception($"Database error: {ex.InnerException?.Message}");
         }
         catch (Exception ex)
         {
@@ -238,7 +314,7 @@ public class CartService : ICartService
     }
 
     // ===============================
-    // Update item in cart
+    // Update item in cart - Đã sửa kiểm tra stock
     // ===============================
     public async Task<CartDto> UpdateCartItemAsync(string userId, string productId, UpdateCartItemDto updateDto)
     {
@@ -251,6 +327,7 @@ public class CartService : ICartService
                 throw new Exception("Product ID is required");
 
             var cart = await _context.Carts
+                .Include(c => c.CartItems)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
             if (cart == null)
@@ -260,6 +337,7 @@ public class CartService : ICartService
             }
 
             var cartItem = await _context.CartItems
+                .Include(ci => ci.Product)
                 .FirstOrDefaultAsync(ci => ci.CartId == cart.CartId && ci.ProductId == productId);
 
             if (cartItem == null)
@@ -275,18 +353,21 @@ public class CartService : ICartService
             }
             else
             {
-                var product = await _context.Products.FindAsync(productId);
+                var product = cartItem.Product ?? await _context.Products.FindAsync(productId);
                 if (product == null)
                 {
                     _logger.LogWarning("Product not found: {ProductId}", productId);
                     throw new Exception("Product not found");
                 }
 
+                // ✅ Kiểm tra stock
                 if (product.StockQuantity < updateDto.Quantity)
                 {
                     _logger.LogWarning("Not enough stock. Product: {ProductId}, Requested: {Requested}, Available: {Available}",
                         productId, updateDto.Quantity, product.StockQuantity);
-                    throw new Exception($"Not enough stock. Available: {product.StockQuantity}");
+
+                    // Gợi ý số lượng tối đa có thể đặt
+                    throw new Exception($"Chỉ còn {product.StockQuantity} sản phẩm trong kho. Bạn có thể đặt tối đa {product.StockQuantity} sản phẩm.");
                 }
 
                 cartItem.Quantity = updateDto.Quantity;

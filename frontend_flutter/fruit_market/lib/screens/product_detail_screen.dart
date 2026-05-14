@@ -8,6 +8,7 @@ import '../providers/review_provider.dart';
 import '../widgets/product_reviews_widget.dart';
 import 'login_screen.dart';
 import 'checkout_screen.dart';
+import 'package:flutter/services.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
@@ -23,6 +24,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   int _quantity = 1;
   bool _isLoading = false;
   bool _isDetailExpanded = true;
+  final TextEditingController _quantityController = TextEditingController();
 
   // Biến kiểm tra đã gọi API
   bool _hasCheckedFavorite = false;
@@ -41,7 +43,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     return '$formattedđ';
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(DateTime? date) {
+    if (date == null) return 'Chưa cập nhật';
     return '${date.day}/${date.month}/${date.year}';
   }
 
@@ -68,9 +71,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     // Cập nhật số lượng đánh giá (có thể dùng sau này)
   }
 
+  void _showMaxQuantityWarning() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Số lượng bạn chọn đã đạt mức tối đa của sản phẩm này (Tối đa: ${widget.product.stockQuantity})'),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showExceedsStockWarning() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Số lượng nhập vượt quá số lượng tồn kho (Tồn kho: ${widget.product.stockQuantity})'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _quantityController.text = _quantity.toString();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -100,6 +126,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   @override
   void dispose() {
+    _quantityController.dispose();
     _animationController.dispose();
     _detailAnimationController.dispose();
     super.dispose();
@@ -248,6 +275,44 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         );
       },
     );
+  }
+
+  void _updateQuantity(int newQuantity) async {
+    // Kiểm tra số lượng vượt quá tồn kho
+    if (newQuantity > widget.product.stockQuantity) {
+      _showExceedsStockWarning();
+      _quantityController.text = _quantity.toString();
+      return;
+    }
+    
+    if (newQuantity < 1) {
+      // Không cho phép số lượng nhỏ hơn 1
+      _quantityController.text = _quantity.toString();
+      return;
+    }
+
+    setState(() {
+      _quantity = newQuantity;
+      _quantityController.text = newQuantity.toString();
+    });
+    HapticFeedback.lightImpact();
+  }
+
+  void _handleQuantitySubmit(String value) {
+    final int? newQuantity = int.tryParse(value);
+    if (newQuantity != null && newQuantity > 0) {
+      if (newQuantity > widget.product.stockQuantity) {
+        _showExceedsStockWarning();
+        _quantityController.text = _quantity.toString();
+      } else {
+        setState(() {
+          _quantity = newQuantity;
+          _quantityController.text = newQuantity.toString();
+        });
+      }
+    } else {
+      _quantityController.text = _quantity.toString();
+    }
   }
 
   void _handleAddToCart() async {
@@ -402,6 +467,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 
+  void _showCertificate() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CertificateScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fullImageUrl = getFullImageUrl();
@@ -437,6 +509,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   ),
                 ),
                 actions: [
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.verified_outlined, color: Colors.black87, size: 22),
+                      onPressed: _showCertificate,
+                    ),
+                  ),
                   Consumer<FavoriteProvider>(
                     builder: (context, favProvider, child) {
                       final isFavNow = authProvider.isAuthenticated
@@ -763,7 +853,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
                         const SizedBox(height: 24),
 
-                        // Thông tin chi tiết - SỬA: bỏ AnimatedSize và dùng SingleChildScrollView cho phần này
+                        // Thông tin chi tiết
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -817,14 +907,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
                         const SizedBox(height: 12),
 
-                        // Thông tin chi tiết - SỬA: dùng SingleChildScrollView để cuộn khi quá dài
                         AnimatedSize(
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
                           child: _isDetailExpanded
                               ? Container(
                                   constraints: const BoxConstraints(
-                                    maxHeight: 280, // Giới hạn chiều cao tối đa
+                                    maxHeight: 300,
                                   ),
                                   child: SingleChildScrollView(
                                     child: Container(
@@ -851,10 +940,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                                           const SizedBox(height: 8),
                                           const Divider(height: 1),
                                           const SizedBox(height: 8),
+                                          // SỬA: Thay "Ngày nhập" thành "Ngày sản xuất"
                                           _buildInfoRow(
                                             icon: Icons.calendar_today_outlined,
-                                            label: 'Ngày nhập',
-                                            value: _formatDate(widget.product.createdAt),
+                                            label: 'Ngày sản xuất',
+                                            value: _formatDate(widget.product.manufactureDate),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          const Divider(height: 1),
+                                          const SizedBox(height: 8),
+                                          // THÊM: Hạn sử dụng
+                                          _buildInfoRow(
+                                            icon: Icons.event_available_outlined,
+                                            label: 'Hạn sử dụng',
+                                            value: _formatDate(widget.product.expiryDate),
                                           ),
                                           const SizedBox(height: 8),
                                           const Divider(height: 1),
@@ -862,7 +961,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                                           _buildInfoRow(
                                             icon: Icons.place_outlined,
                                             label: 'Nguồn gốc / Xuất xứ',
-                                            value: widget.product.supplierAddress ?? 'Đà Lạt, Việt Nam',
+                                            value: widget.product.origin ?? 'Đà Lạt, Việt Nam',
                                           ),
                                         ],
                                       ),
@@ -889,7 +988,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             ],
           ),
 
-          // Bottom Bar (giữ nguyên)
+          // Bottom Bar
           Positioned(
             bottom: 0,
             left: 0,
@@ -926,28 +1025,47 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                             icon: Icons.remove,
                             onTap: () {
                               if (_quantity > 1) {
-                                setState(() => _quantity--);
+                                _updateQuantity(_quantity - 1);
                               }
                             },
                           ),
                           Container(
-                            width: 40,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            child: Text(
-                              '$_quantity',
+                            width: 50,
+                            height: 40,
+                            alignment: Alignment.center,
+                            child: TextField(
+                              controller: _quantityController,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF1B5E20),
                               ),
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                                isDense: true,
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              onSubmitted: _handleQuantitySubmit,
+                              onTap: () {
+                                _quantityController.selection = TextSelection(
+                                  baseOffset: 0,
+                                  extentOffset: _quantityController.text.length,
+                                );
+                              },
                             ),
                           ),
                           _buildQuantityButton(
                             icon: Icons.add,
                             onTap: () {
-                              if (_quantity < widget.product.stockQuantity) {
-                                setState(() => _quantity++);
+                              if (_quantity >= widget.product.stockQuantity) {
+                                _showMaxQuantityWarning();
+                              } else {
+                                _updateQuantity(_quantity + 1);
                               }
                             },
                           ),
@@ -1144,6 +1262,132 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ==================== MÀN HÌNH CHỨNG NHẬN SẢN PHẨM ====================
+class CertificateScreen extends StatelessWidget {
+  const CertificateScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        title: const Text(
+          '  Giấy chứng nhận \nAn toàn thực phẩm',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1B5E20),
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double maxWidth = constraints.maxWidth;
+            double imageWidth = maxWidth > 800 ? 700 : maxWidth - 40;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'lib/assets/img/giaychungnhan.png',
+                        width: imageWidth,
+                        fit: BoxFit.fitWidth,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: imageWidth,
+                            height: 500,
+                            color: Colors.grey[200],
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.broken_image,
+                                  size: 80,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Không tìm thấy ảnh giấy chứng nhận',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Vui lòng kiểm tra đường dẫn:\nlib/assets/img/giaychungnhan.png',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.verified,
+                          color: Color(0xFF2E7D32),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Chứng nhận hợp lệ',
+                          style: TextStyle(
+                            color: const Color(0xFF2E7D32),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

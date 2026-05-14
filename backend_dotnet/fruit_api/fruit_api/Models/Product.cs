@@ -44,6 +44,11 @@ public class Product
     [Column("imageUrl")]
     public string? ImageUrl { get; set; }
 
+    [Required]
+    [MaxLength(100)]
+    [Column("origin")]
+    public string Origin { get; set; } = string.Empty;
+
     [Column("isActive")]
     public bool IsActive { get; set; } = true;
 
@@ -57,4 +62,6 @@ public class Product
     public ICollection<OrderItem>? OrderItems { get; set; }
     public ICollection<Review>? Reviews { get; set; }
     public ICollection<Favorite>? Favorites { get; set; }
+
+    public ICollection<Inventory>? Inventories { get; set; }
 }

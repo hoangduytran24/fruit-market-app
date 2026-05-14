@@ -24,8 +24,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Review> Reviews { get; set; }
     public DbSet<Favorite> Favorites { get; set; }
     public DbSet<UserVoucher> UserVouchers { get; set; }
-
     public DbSet<PendingTransaction> PendingTransactions { get; set; }
+    public DbSet<Inventory> Inventories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +44,46 @@ public class ApplicationDbContext : DbContext
                 tb.HasTrigger("trg_UpdateStock_WhenInsertOrderItem");
                 tb.HasTrigger("trg_UpdateOrderTotal");
             });
+
+        // ==================== INVENTORY CONFIGURATION ====================
+        modelBuilder.Entity<Inventory>(entity =>
+        {
+            entity.HasKey(e => e.InventoryId);
+
+            entity.Property(e => e.InventoryId)
+                .HasDefaultValueSql("CONCAT('INV', RIGHT(CONVERT(VARCHAR, ABS(CHECKSUM(NEWID()))), 10))");
+
+            entity.Property(e => e.Status)
+                .HasDefaultValue("in_stock");
+
+            entity.Property(e => e.ImportDate)
+                .HasDefaultValueSql("GETDATE()");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("GETDATE()");
+
+            // Relationships
+            entity.HasOne(e => e.Product)
+                .WithMany(p => p.Inventories)
+                .HasForeignKey(e => e.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Indexes
+            entity.HasIndex(e => e.ProductId)
+                .HasDatabaseName("IX_Inventory_ProductId");
+
+            entity.HasIndex(e => e.ExpiryDate)
+                .HasDatabaseName("IX_Inventory_ExpiryDate");
+
+            entity.HasIndex(e => e.Status)
+                .HasDatabaseName("IX_Inventory_Status");
+
+            // Check constraints
+            entity.ToTable(t => t.HasCheckConstraint("CK_Inventory_Quantity", "quantity >= 0"));
+
+            entity.ToTable(t => t.HasCheckConstraint("CK_Inventory_Status",
+                "status IN ('in_stock', 'expired', 'sold_out')"));
+        });
 
         // ==================== UNIQUE CONSTRAINTS ====================
 

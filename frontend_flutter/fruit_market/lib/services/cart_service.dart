@@ -62,6 +62,52 @@ class CartService {
     }
   }
 
+  // ✅ REFRESH STOCK - Gọi API refresh-stock
+  Future<Cart> refreshCartStock() async {
+    try {
+      final headers = await ApiService.authHeaders;
+      print('📦 Refreshing cart stock...');
+      
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}Cart/refresh-stock'),
+        headers: headers,
+      );
+
+      print('📦 Refresh stock response status: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        if (response.body.isEmpty) {
+          final now = DateTime.now();
+          return Cart(
+            cartId: '',
+            userId: '',
+            createdAt: now,
+            updatedAt: now,
+            items: [],
+            totalItems: 0,
+            totalPrice: 0,
+          );
+        }
+        return Cart.fromJson(json.decode(response.body));
+      } else {
+        String errorMessage = 'Không thể cập nhật tồn kho';
+        try {
+          if (response.body.isNotEmpty) {
+            final error = json.decode(response.body);
+            errorMessage = error['message'] ?? errorMessage;
+          }
+        } catch (e) {
+          print('Error parsing error response: $e');
+        }
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('❌ Refresh stock error: $e');
+      throw Exception('Lỗi: $e');
+    }
+  }
+
   // Thêm sản phẩm vào giỏ
   Future<Cart> addToCart(Product product, int quantity) async {
     try {
@@ -101,8 +147,8 @@ class CartService {
         throw Exception(errorMessage);
       }
     } catch (e) {
-      print('❌ Add to cart error: $e');
-      throw Exception('Lỗi: $e');
+      print('Add to cart error: $e');
+      throw Exception('$e');
     }
   }
 
@@ -216,7 +262,7 @@ class CartService {
     }
   }
 
-  // Thanh toán
+  // Thanh toán với danh sách cartItemIds
   Future<bool> checkout(List<String> cartItemIds) async {
     try {
       final headers = await ApiService.authHeaders;
@@ -253,6 +299,61 @@ class CartService {
     } catch (e) {
       print('❌ Checkout error: $e');
       return false;
+    }
+  }
+
+  // ========== THÊM MỚI: Tạo đơn với danh sách sản phẩm được chọn ==========
+  Future<Map<String, dynamic>> createOrderFromSelectedItems({
+    required List<Map<String, dynamic>> items,
+    required String deliveryAddress,
+    required String paymentMethod,
+    required String receiverName,
+    required String receiverPhone,
+    String? voucherCode,
+    double shippingFee = 25000,
+  }) async {
+    try {
+      final headers = await ApiService.authHeaders;
+      print('📦 Creating order from selected items: $items');
+      
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}orders/from-selected-items'),
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'items': items,
+          'deliveryAddress': deliveryAddress,
+          'paymentMethod': paymentMethod,
+          'receiverName': receiverName,
+          'receiverPhone': receiverPhone,
+          'voucherCode': voucherCode,
+          'shippingFee': shippingFee,
+        }),
+      );
+
+      print('📦 Create order response status: ${response.statusCode}');
+      print('📄 Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        String errorMessage = 'Không thể tạo đơn hàng';
+        try {
+          if (response.body.isNotEmpty) {
+            final error = json.decode(response.body);
+            errorMessage = error['message'] ?? errorMessage;
+          }
+        } catch (e) {
+          print('Error parsing error response: $e');
+        }
+        return {'success': false, 'message': errorMessage};
+      }
+    } catch (e) {
+      print('❌ Create order error: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 }

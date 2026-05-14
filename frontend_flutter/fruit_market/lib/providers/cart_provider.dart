@@ -11,6 +11,7 @@ class CartProvider extends ChangeNotifier {
   Set<String> _selectedItems = {};
   bool _hasLoaded = false;
   bool _isLoadingCart = false;
+  bool _hasAutoCorrected = false; // ✅ Thêm flag
 
   // Getters
   Cart? get cart => _cart;
@@ -19,6 +20,7 @@ class CartProvider extends ChangeNotifier {
   Set<String> get selectedItems => _selectedItems;
   bool get hasLoaded => _hasLoaded;
   bool get isLoadingCart => _isLoadingCart;
+  bool get hasAutoCorrected => _hasAutoCorrected;
   
   int get itemCount {
     if (_cart?.items.isEmpty ?? true) return 0;
@@ -57,15 +59,13 @@ class CartProvider extends ChangeNotifier {
 
   final CartService _cartService = CartService();
 
-  // SỬA: loadCart với tham số forceRefresh
+  // loadCart với tham số forceRefresh
   Future<void> loadCart({bool forceRefresh = false}) async {
-    // Nếu đã load và không force refresh thì bỏ qua
     if (_hasLoaded && _cart != null && !forceRefresh) {
       print('✅ Cart đã được load trước đó, bỏ qua fetch');
       return;
     }
     
-    // Nếu đang load thì bỏ qua
     if (_isLoadingCart && !forceRefresh) {
       print('⏳ Cart đang được load, bỏ qua request');
       return;
@@ -83,6 +83,7 @@ class CartProvider extends ChangeNotifier {
         _selectedItems.clear();
       }
       _hasLoaded = true;
+      _hasAutoCorrected = false;
       _setLoading(false);
     } catch (e) {
       print('❌ Load cart error: $e');
@@ -93,12 +94,43 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  // THÊM: Làm mới giỏ hàng (force refresh)
+  // ✅ REFRESH CART STOCK - Gọi API refresh-stock
+  Future<void> refreshCartStock({bool showWarning = true}) async {
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final newCart = await _cartService.refreshCartStock();
+      _cart = newCart;
+      _hasLoaded = true;
+      
+      // Kiểm tra xem có auto-corrected không (từ response)
+      _hasAutoCorrected = newCart.hasAutoCorrected;
+      
+      // Cập nhật lại selected items (loại bỏ các item đã bị xóa)
+      final existingItemIds = _cart!.items.map((e) => e.cartItemId).toSet();
+      _selectedItems = _selectedItems.intersection(existingItemIds);
+      
+      if (_hasAutoCorrected && showWarning && _cart!.items.isNotEmpty) {
+        // Phát sự kiện để UI hiển thị cảnh báo
+        notifyListeners();
+      }
+      
+      _setLoading(false);
+    } catch (e) {
+      print('❌ Refresh cart stock error: $e');
+      _setError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Làm mới giỏ hàng (force refresh)
   Future<void> refreshCart() async {
     await loadCart(forceRefresh: true);
   }
 
-  // THÊM: load cart silently (không set loading state)
+  // load cart silently (không set loading state)
   Future<void> loadCartSilently() async {
     if (_hasLoaded && _cart != null) return;
     
@@ -110,13 +142,14 @@ class CartProvider extends ChangeNotifier {
         _selectedItems.clear();
       }
       _hasLoaded = true;
+      _hasAutoCorrected = false;
       notifyListeners();
     } catch (e) {
       print('❌ Load cart silently error: $e');
     }
   }
 
-  // THÊM: đảm bảo cart đã được load
+  // đảm bảo cart đã được load
   Future<void> ensureCartLoaded() async {
     if (_hasLoaded && _cart != null) {
       print('✅ Cart đã được load trước đó');
@@ -256,6 +289,14 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
+  // ========== THÊM MỚI: Xóa các item được chọn theo danh sách productId ==========
+  Future<void> removeSelectedItemsByIds(List<String> productIds) async {
+    for (final productId in productIds) {
+      await removeItem(productId);
+    }
+    await refreshCart();
+  }
+
   void toggleSelect(String cartItemId) {
     if (_selectedItems.contains(cartItemId)) {
       _selectedItems.remove(cartItemId);
@@ -355,6 +396,11 @@ class CartProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
   }
+  
+  void clearAutoCorrectedFlag() {
+    _hasAutoCorrected = false;
+    notifyListeners();
+  }
 
   // Reset state
   void reset() {
@@ -364,6 +410,7 @@ class CartProvider extends ChangeNotifier {
     _selectedItems.clear();
     _hasLoaded = false;
     _isLoadingCart = false;
+    _hasAutoCorrected = false;
     notifyListeners();
   }
 

@@ -79,60 +79,6 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Lấy sản phẩm nổi bật
-    /// </summary>
-    [HttpGet("featured")]
-    public async Task<IActionResult> GetFeatured([FromQuery] int count = 8)
-    {
-        try
-        {
-            var products = await _productService.GetFeaturedProductsAsync(count);
-            return Ok(products);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting featured products");
-            return StatusCode(500, new { message = "An error occurred while getting featured products" });
-        }
-    }
-
-    /// <summary>
-    /// Lấy sản phẩm mới nhất
-    /// </summary>
-    [HttpGet("newest")]
-    public async Task<IActionResult> GetNewest([FromQuery] int count = 8)
-    {
-        try
-        {
-            var products = await _productService.GetNewestProductsAsync(count);
-            return Ok(products);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting newest products");
-            return StatusCode(500, new { message = "An error occurred while getting newest products" });
-        }
-    }
-
-    /// <summary>
-    /// Lấy sản phẩm bán chạy
-    /// </summary>
-    [HttpGet("best-selling")]
-    public async Task<IActionResult> GetBestSelling([FromQuery] int count = 8)
-    {
-        try
-        {
-            var products = await _productService.GetBestSellingProductsAsync(count);
-            return Ok(products);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting best selling products");
-            return StatusCode(500, new { message = "An error occurred while getting best selling products" });
-        }
-    }
-
-    /// <summary>
     /// Lấy chi tiết sản phẩm theo ID
     /// </summary>
     [HttpGet("{id}")]
@@ -224,6 +170,22 @@ public class ProductsController : ControllerBase
         {
             _logger.LogError(ex, "Error deleting product: {ProductId}", id);
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+
+    [HttpPatch("{id}/active")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> SetActive(string id, [FromBody] bool isActive)
+    {
+        try
+        {
+            await _productService.UpdateProductStatusAsync(id, isActive);
+            return Ok(new { id, isActive });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
         }
     }
 

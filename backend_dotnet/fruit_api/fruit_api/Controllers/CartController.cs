@@ -38,6 +38,21 @@ public class CartController : ControllerBase
         }
     }
 
+    [HttpGet("refresh-stock")]
+    public async Task<IActionResult> RefreshCartStock()
+    {
+        try
+        {
+            var userId = GetUserId();
+            var cart = await _cartService.GetCartWithAutoCorrectAsync(userId);
+            return Ok(cart);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("add")]
     public async Task<IActionResult> AddToCart(AddToCartDto addToCartDto)
     {

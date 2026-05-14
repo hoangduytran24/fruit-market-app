@@ -3,13 +3,14 @@
 class CartItem {
   final String cartItemId;
   final String productId;
-  final String productName;  // THÊM
-  final String? imageUrl;     // THÊM
-  final String unit;          // THÊM
-  final double price;         // API trả về "price"
+  final String productName;
+  final String? imageUrl;
+  final String unit;
+  final double price;
   final int quantity;
-  final double subtotal;      // THÊM
-  final Product? product;     // Giữ lại nếu có
+  final double subtotal;
+  final int stockQuantity;
+  final Product? product;
 
   CartItem({
     required this.cartItemId,
@@ -20,6 +21,7 @@ class CartItem {
     required this.price,
     required this.quantity,
     required this.subtotal,
+    required this.stockQuantity,
     this.product,
   });
 
@@ -33,6 +35,7 @@ class CartItem {
       price: (json['price'] ?? 0).toDouble(),
       quantity: json['quantity'] ?? 0,
       subtotal: (json['subtotal'] ?? 0).toDouble(),
+      stockQuantity: json['stockQuantity'] ?? 0,  // THÊM: Lấy từ API hoặc product
       product: json['product'] != null
           ? Product.fromJson(json['product'])
           : null,
@@ -49,6 +52,7 @@ class CartItem {
       'price': price,
       'quantity': quantity,
       'subtotal': subtotal,
+      'stockQuantity': stockQuantity,  // THÊM
       'product': product?.toJson(),
     };
   }

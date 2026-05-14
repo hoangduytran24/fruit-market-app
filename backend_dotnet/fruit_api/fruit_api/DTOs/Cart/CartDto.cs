@@ -7,6 +7,7 @@ public class CartItemDto
     public string ProductName { get; set; } = string.Empty;
     public string? ImageUrl { get; set; }
     public string Unit { get; set; } = string.Empty;
+    public int stockQuantity { get; set; }
     public decimal Price { get; set; }
     public int Quantity { get; set; }
     public decimal Subtotal { get; set; }
@@ -20,6 +21,7 @@ public class CartDto
     public int TotalItems { get; set; }
     public decimal TotalPrice { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool HasAutoCorrected { get; set; } = false;
 }
 
 public class AddToCartDto

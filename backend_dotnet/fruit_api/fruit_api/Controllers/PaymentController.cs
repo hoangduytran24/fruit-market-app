@@ -1,8 +1,10 @@
 ﻿using fruit_api.Data;
+using fruit_api.DTOs.Payment;
 using fruit_api.Models;
 using fruit_api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace fruit_api.Controllers;
 
@@ -13,20 +15,24 @@ public class PaymentController : ControllerBase
     private readonly VietQRService _vietQRService;
     private readonly BankTransactionService _bankTransactionService;
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<PaymentController> _logger;
 
     public PaymentController(
         VietQRService vietQRService,
         BankTransactionService bankTransactionService,
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        ILogger<PaymentController> logger)
     {
         _vietQRService = vietQRService;
         _bankTransactionService = bankTransactionService;
         _context = context;
+        _logger = logger;
     }
 
-    // ==================== VIETQR ====================
 
-    // Tạo thanh toán VietQR
+    /// <summary>
+    /// Tạo thanh toán VietQR
+    /// </summary>
     [HttpPost("vietqr/create")]
     public async Task<IActionResult> CreateVietQRPayment([FromBody] VietQRRequest request)
     {
@@ -35,13 +41,11 @@ public class PaymentController : ControllerBase
             Console.WriteLine($"=== Create VietQR Payment ===");
             Console.WriteLine($"OrderId: {request?.OrderId}");
 
-            // Kiểm tra request
             if (request == null || string.IsNullOrEmpty(request.OrderId))
             {
                 return BadRequest(new { success = false, message = "OrderId không được để trống" });
             }
 
-            // Kiểm tra đơn hàng
             var order = await _context.Orders
                 .FirstOrDefaultAsync(o => o.OrderId == request.OrderId);
 
@@ -50,7 +54,6 @@ public class PaymentController : ControllerBase
                 return NotFound(new { success = false, message = $"Không tìm thấy đơn hàng" });
             }
 
-            // Lấy số tiền
             decimal amount = order.FinalAmount > 0 ? order.FinalAmount : order.TotalAmount;
 
             if (amount <= 0)
@@ -58,7 +61,6 @@ public class PaymentController : ControllerBase
                 return BadRequest(new { success = false, message = "Số tiền không hợp lệ" });
             }
 
-            // Kiểm tra đã có payment chưa
             var existingPayment = await _context.Payments
                 .FirstOrDefaultAsync(p => p.OrderId == request.OrderId);
 
@@ -68,14 +70,13 @@ public class PaymentController : ControllerBase
             {
                 payment = existingPayment;
 
-                if (payment.PaymentStatus == "success")
+                if (payment.PaymentStatus == "paid")
                 {
                     return BadRequest(new { success = false, message = "Đơn hàng đã được thanh toán" });
                 }
             }
             else
             {
-                // Tạo payment mới
                 payment = new Payment
                 {
                     PaymentId = GeneratePaymentId(),
@@ -89,14 +90,11 @@ public class PaymentController : ControllerBase
                 await _context.SaveChangesAsync();
             }
 
-            // Tạo QR code
             var qrResult = _vietQRService.GenerateQR(request.OrderId, amount);
 
-            // Lưu QR URL vào payment
             payment.QrCodeUrl = qrResult.QrCodeUrl;
             await _context.SaveChangesAsync();
 
-            // Thêm vào danh sách chờ kiểm tra
             await _bankTransactionService.AddPendingTransaction(
                 request.OrderId,
                 payment.PaymentId,
@@ -121,7 +119,9 @@ public class PaymentController : ControllerBase
         }
     }
 
-    // Kiểm tra trạng thái thanh toán (polling)
+    /// <summary>
+    /// Kiểm tra trạng thái thanh toán VietQR (polling)
+    /// </summary>
     [HttpGet("vietqr/check/{orderId}")]
     public async Task<IActionResult> CheckVietQRPayment(string orderId)
     {
@@ -135,7 +135,6 @@ public class PaymentController : ControllerBase
                 return NotFound(new { success = false, message = "Không tìm thấy payment" });
             }
 
-            // Nếu đã thanh toán thành công
             if (payment.PaymentStatus == "paid")
             {
                 return Ok(new
@@ -148,18 +147,15 @@ public class PaymentController : ControllerBase
                 });
             }
 
-            // Kiểm tra giao dịch
             var checkResult = await _bankTransactionService.CheckTransaction(orderId, payment.Amount);
 
             if (checkResult.Success)
             {
-                // Cập nhật payment thành công
                 payment.PaymentStatus = "paid";
                 payment.TransactionCode = checkResult.TransactionCode;
                 payment.PaidAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                // Cập nhật order status
                 var order = await _context.Orders.FindAsync(orderId);
                 if (order != null)
                 {
@@ -179,7 +175,6 @@ public class PaymentController : ControllerBase
                 });
             }
 
-            // Chưa có thanh toán
             return Ok(new
             {
                 success = false,
@@ -192,6 +187,210 @@ public class PaymentController : ControllerBase
         catch (Exception ex)
         {
             Console.WriteLine($"Error checking payment: {ex.Message}");
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
+
+
+    /// <summary>
+    /// Tạo thanh toán với SePay (hiển thị QR)
+    /// </summary>
+    [HttpPost("sepay/create")]
+    public async Task<IActionResult> CreateSePayPayment([FromBody] VietQRRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("=== Create SePay Payment ===");
+            _logger.LogInformation($"OrderId: {request?.OrderId}");
+
+            if (request == null || string.IsNullOrEmpty(request.OrderId))
+            {
+                return BadRequest(new { success = false, message = "OrderId không được để trống" });
+            }
+
+            // Kiểm tra đơn hàng
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.OrderId == request.OrderId);
+
+            if (order == null)
+            {
+                return NotFound(new { success = false, message = "Không tìm thấy đơn hàng" });
+            }
+
+            if (order.Status == "paid")
+            {
+                return BadRequest(new { success = false, message = "Đơn hàng đã được thanh toán" });
+            }
+
+            decimal amount = order.FinalAmount > 0 ? order.FinalAmount : order.TotalAmount;
+
+            if (amount <= 0)
+            {
+                return BadRequest(new { success = false, message = "Số tiền không hợp lệ" });
+            }
+
+            // Kiểm tra payment record
+            var existingPayment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.OrderId == request.OrderId);
+
+            Payment payment;
+
+            if (existingPayment != null)
+            {
+                payment = existingPayment;
+                if (payment.PaymentStatus == "paid")
+                {
+                    return BadRequest(new { success = false, message = "Đơn hàng đã được thanh toán" });
+                }
+            }
+            else
+            {
+                payment = new Payment
+                {
+                    PaymentId = GeneratePaymentId(),
+                    OrderId = request.OrderId,
+                    Amount = amount,
+                    PaymentMethod = "SEPAY",
+                    PaymentStatus = "pending"
+                };
+                _context.Payments.Add(payment);
+                await _context.SaveChangesAsync();
+            }
+
+            // Tạo QR code (dùng VietQR service)
+            var qrResult = _vietQRService.GenerateQR(request.OrderId, amount);
+            payment.QrCodeUrl = qrResult.QrCodeUrl;
+            await _context.SaveChangesAsync();
+
+            // Thêm vào pending transactions
+            var existingPending = await _context.PendingTransactions
+                .FirstOrDefaultAsync(p => p.OrderId == request.OrderId && p.Status == "pending");
+
+            if (existingPending == null)
+            {
+                var pendingTrans = new PendingTransaction
+                {
+                    OrderId = request.OrderId,
+                    PaymentId = payment.PaymentId,
+                    Amount = amount,
+                    BankCode = "MB",
+                    Status = "pending",
+                    CheckCount = 0,
+                    CreatedAt = DateTime.Now
+                };
+                _context.PendingTransactions.Add(pendingTrans);
+                await _context.SaveChangesAsync();
+            }
+
+            _logger.LogInformation($"Created SePay payment: {payment.PaymentId}, Amount: {amount}");
+
+            return Ok(new
+            {
+                success = true,
+                paymentId = payment.PaymentId,
+                qrCodeUrl = qrResult.QrCodeUrl,
+                amount = amount,
+                orderId = request.OrderId,
+                message = "Tạo mã QR thành công. Vui lòng quét mã để thanh toán."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating SePay payment");
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Kiểm tra trạng thái thanh toán SePay (polling)
+    /// </summary>
+    [HttpGet("sepay/status/{orderId}")]
+    public async Task<IActionResult> GetSePayPaymentStatus(string orderId)
+    {
+        try
+        {
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.OrderId == orderId);
+
+            if (payment == null)
+            {
+                return Ok(new
+                {
+                    success = false,
+                    status = "not_found",
+                    message = "Không tìm thấy thông tin thanh toán"
+                });
+            }
+
+            if (payment.PaymentStatus == "paid")
+            {
+                var order = await _context.Orders.FindAsync(orderId);
+                return Ok(new
+                {
+                    success = true,
+                    status = "paid",
+                    paymentId = payment.PaymentId,
+                    transactionCode = payment.TransactionCode,
+                    paidAt = payment.PaidAt,
+                    amount = payment.Amount,
+                    orderStatus = order?.Status,
+                    message = "Thanh toán thành công!"
+                });
+            }
+
+            return Ok(new
+            {
+                success = false,
+                status = "pending",
+                paymentId = payment.PaymentId,
+                amount = payment.Amount,
+                message = "Chờ thanh toán. Vui lòng quét mã QR để hoàn tất."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking SePay payment status");
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Lấy thông tin chi tiết payment
+    /// </summary>
+    [HttpGet("info/{paymentId}")]
+    public async Task<IActionResult> GetPaymentInfo(string paymentId)
+    {
+        try
+        {
+            var payment = await _context.Payments
+                .Include(p => p.Order)
+                .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
+
+            if (payment == null)
+            {
+                return NotFound(new { success = false, message = "Không tìm thấy payment" });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                data = new
+                {
+                    payment.PaymentId,
+                    payment.OrderId,
+                    payment.Amount,
+                    payment.PaymentMethod,
+                    payment.PaymentStatus,
+                    payment.TransactionCode,
+                    payment.QrCodeUrl,
+                    payment.PaidAt,
+                    orderStatus = payment.Order?.Status
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment info");
             return StatusCode(500, new { success = false, message = ex.Message });
         }
     }

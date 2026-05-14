@@ -43,8 +43,8 @@ class OrderService {
     required int quantity,
     required String paymentMethod,
     required String deliveryAddress,
-    required String receiverName,      // Thêm
-    required String receiverPhone,     // Thêm
+    required String receiverName,
+    required String receiverPhone,
     String? voucherCode,
     double shippingFee = 25000,
   }) async {
@@ -56,8 +56,8 @@ class OrderService {
           'quantity': quantity,
           'paymentMethod': paymentMethod,
           'deliveryAddress': deliveryAddress,
-          'receiverName': receiverName,      // Thêm
-          'receiverPhone': receiverPhone,    // Thêm
+          'receiverName': receiverName,
+          'receiverPhone': receiverPhone,
           'voucherCode': voucherCode,
           'shippingFee': shippingFee,
         },
@@ -76,12 +76,12 @@ class OrderService {
     }
   }
 
-  // Tạo đơn từ giỏ hàng
+  // Tạo đơn từ giỏ hàng (toàn bộ)
   Future<Order> createOrderFromCart({
     required String deliveryAddress,
     required String paymentMethod,
-    required String receiverName,      // Thêm
-    required String receiverPhone,     // Thêm
+    required String receiverName,
+    required String receiverPhone,
     String? voucherCode,
     double shippingFee = 25000,
   }) async {
@@ -91,8 +91,8 @@ class OrderService {
         body: {
           'deliveryAddress': deliveryAddress,
           'paymentMethod': paymentMethod,
-          'receiverName': receiverName,      // Thêm
-          'receiverPhone': receiverPhone,    // Thêm
+          'receiverName': receiverName,
+          'receiverPhone': receiverPhone,
           'voucherCode': voucherCode,
           'shippingFee': shippingFee,
         },
@@ -107,6 +107,43 @@ class OrderService {
       }
     } catch (e) {
       print('❌ Create order from cart error: $e');
+      rethrow;
+    }
+  }
+
+  // ========== THÊM MỚI: Tạo đơn từ danh sách sản phẩm được chọn ==========
+  Future<Order?> createOrderFromSelectedItems({
+    required List<Map<String, dynamic>> items,
+    required String deliveryAddress,
+    required String paymentMethod,
+    required String receiverName,
+    required String receiverPhone,
+    String? voucherCode,
+    double shippingFee = 25000,
+  }) async {
+    try {
+      final response = await ApiService.post(
+        'orders/from-selected-items',
+        body: {
+          'items': items,
+          'deliveryAddress': deliveryAddress,
+          'paymentMethod': paymentMethod,
+          'receiverName': receiverName,
+          'receiverPhone': receiverPhone,
+          'voucherCode': voucherCode,
+          'shippingFee': shippingFee,
+        },
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = json.decode(response.body);
+        return Order.fromJson(data);
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Không thể tạo đơn hàng');
+      }
+    } catch (e) {
+      print('❌ Create order from selected items error: $e');
       rethrow;
     }
   }

@@ -9,6 +9,11 @@ public interface IOrderService
     Task<OrderDto?> GetOrderByIdAsync(string id);
     Task<OrderDto> CreateOrderAsync(string userId, CreateOrderDto createOrderDto);
     Task<OrderDto> BuyNowAsync(string userId, BuyNowDto buyNowDto);
+
+    // ========== THÊM MỚI ==========
+    Task<OrderDto> CreateOrderFromSelectedItemsAsync(string userId, CreateOrderFromSelectedItemsDto createOrderDto);
+    // ==============================
+
     Task<OrderDto> UpdateOrderStatusAsync(string id, UpdateOrderStatusDto updateDto);
     Task<bool> CancelOrderAsync(string id);
 }

@@ -105,7 +105,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final user = authProvider.currentUser;
     if (user != null) {
       setState(() {
-        // Lấy thông tin người nhận từ user làm giá trị mặc định
         _receiverNameController.text = user.fullName;
         _receiverPhoneController.text = user.phone;
         _addressController.text = '';
@@ -152,10 +151,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
   
   double get _finalAmount => _totalAmount - _discountAmount;
+  
   bool _isVoucherValid(VoucherPublicDto voucher) {
     if (voucher.isExpired) return false;
     if (_totalAmount < voucher.minOrderValue) return false;
     return true;
+  }
+
+  // ========== THÊM: Hàm lấy danh sách sản phẩm được chọn ==========
+  List<Map<String, dynamic>> _getSelectedOrderItems() {
+    return widget.items.map((item) => {
+      'productId': item.productId,
+      'quantity': item.quantity,
+    }).toList();
   }
 
   Future<void> _processOrder() async {
@@ -197,7 +205,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             voucherCode: voucherCode ?? widget.voucherCode,
           );
         } else {
-          order = await orderProvider.createOrderFromCart(
+          // ========== SỬA: Gọi API mới thay vì createOrderFromCart ==========
+          order = await orderProvider.createOrderFromSelectedItems(
+            items: _getSelectedOrderItems(),
             deliveryAddress: _addressController.text.trim(),
             paymentMethod: 'bank_transfer',
             receiverName: _receiverNameController.text.trim(),
@@ -215,14 +225,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               MaterialPageRoute(
                 builder: (_) => VietQRPaymentScreen(
                   orderId: order!.orderId,
-                  amount: _finalAmount + 25000,
+                  amount: _finalAmount,
                 ),
               ),
-            ).then((result) {
+            ).then((result) async {
               if (result == true) {
                 if (!widget.isBuyNow) {
                   final cartProvider = Provider.of<CartProvider>(context, listen: false);
-                  cartProvider.clearCart();
+                  // ========== SỬA: Xóa các item đã chọn thay vì clear toàn bộ ==========
+                  final selectedProductIds = widget.items.map((item) => item.productId).toList();
+                  await cartProvider.removeSelectedItemsByIds(selectedProductIds);
                 }
                 _showSuccessDialog();
               }
@@ -259,7 +271,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           voucherCode: voucherCode ?? widget.voucherCode,
         );
       } else {
-        order = await orderProvider.createOrderFromCart(
+        // ========== SỬA: Gọi API mới thay vì createOrderFromCart ==========
+        order = await orderProvider.createOrderFromSelectedItems(
+          items: _getSelectedOrderItems(),
           deliveryAddress: _addressController.text.trim(),
           paymentMethod: _paymentMethod,
           receiverName: _receiverNameController.text.trim(),
@@ -274,7 +288,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (order != null) {
           if (!widget.isBuyNow) {
             final cartProvider = Provider.of<CartProvider>(context, listen: false);
-            await cartProvider.clearCart();
+            // ========== SỬA: Xóa các item đã chọn thay vì clear toàn bộ ==========
+            final selectedProductIds = widget.items.map((item) => item.productId).toList();
+            await cartProvider.removeSelectedItemsByIds(selectedProductIds);
           }
           
           if (mounted) {
@@ -670,7 +686,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           const SizedBox(height: 16),
           
-          // Tên người nhận
           _buildEditableInfoField(
             controller: _receiverNameController,
             icon: Icons.person_outline,
@@ -679,7 +694,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           const SizedBox(height: 12),
           
-          // Số điện thoại người nhận
           _buildEditableInfoField(
             controller: _receiverPhoneController,
             icon: Icons.phone_iphone_outlined,
@@ -693,7 +707,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           const SizedBox(height: 12),
           
-          // Địa chỉ giao hàng
           _buildEditableInfoField(
             controller: _addressController,
             icon: Icons.location_on_outlined,

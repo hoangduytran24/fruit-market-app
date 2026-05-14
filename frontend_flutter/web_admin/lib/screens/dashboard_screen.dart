@@ -8,13 +8,14 @@ import '../utils/responsive.dart';
 import '../providers/statistics_provider.dart';
 import '../models/statistics.dart';
 import '../utils/image_utils.dart';
-import 'products_screen.dart';
-import 'categogy_screen.dart';
-import 'orders_screen.dart';
-import 'suppliers_screen.dart';
+import '../screens/products_screen/products_screen.dart';
+import '../screens/category_screen/categories_screen.dart';
+import '../screens/orders_screen/orders_screen.dart';
+import '../screens/suppliers_screen/suppliers_screen.dart';
 import 'settings_screen.dart';
-import 'users_screen.dart';
-import 'vocher_screen.dart';
+import '../screens/users_screen/users_screen.dart';
+import '../screens/voucher_screen/vouchers_screen.dart';
+import '../screens/inventory_screen/inventory_screen.dart';
 
 class DashboardTheme {
   static const Color primary = Color(0xFF2E7D32);
@@ -56,7 +57,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     {'icon': Icons.people_rounded, 'label': 'Người dùng', 'index': 4},
     {'icon': Icons.business_center_rounded, 'label': 'Nhà cung cấp', 'index': 5},
     {'icon': Icons.local_offer_rounded, 'label': 'Voucher', 'index': 6},
-    {'icon': Icons.settings_rounded, 'label': 'Cài đặt', 'index': 7},
+    {'icon': Icons.inventory, 'label': 'Nhập hàng', 'index': 7}, 
+    {'icon': Icons.settings_rounded, 'label': 'Cài đặt', 'index': 8},
   ];
 
   @override
@@ -69,6 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const UsersScreen(),
       const SuppliersScreen(),
       const VouchersScreen(),
+      const InventoryScreen(), 
       const SettingsScreen(),
     ];
 
@@ -99,7 +102,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               iconTheme: const IconThemeData(color: DashboardTheme.textMain),
               title: Text(
                 _menuItems[_selectedIndex]['label'],
-                style: const TextStyle(color: DashboardTheme.textMain, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: DashboardTheme.textMain, fontWeight: FontWeight.bold),
               ),
             ),
             Expanded(child: screens[_selectedIndex]),
@@ -111,8 +115,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               isCollapsed: _isSidebarCollapsed,
               selectedIndex: _selectedIndex,
               menuItems: _menuItems,
-              onItemSelected: (index) => setState(() => _selectedIndex = index),
-              onToggleCollapse: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+              onItemSelected: (index) =>
+                  setState(() => _selectedIndex = index),
+              onToggleCollapse: () =>
+                  setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
             ),
             Expanded(
               child: Column(
@@ -154,7 +160,8 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     final stats = provider.dashboard;
 
     if (provider.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: DashboardTheme.primary));
+      return const Center(
+          child: CircularProgressIndicator(color: DashboardTheme.primary));
     }
 
     return LayoutBuilder(
@@ -168,7 +175,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               children: [
                 _buildHeader(),
                 const SizedBox(height: 24),
-                // Phần thống kê 5 ô
                 _buildStatCards(constraints.maxWidth, stats),
                 const SizedBox(height: 24),
                 _buildMainChartsRow(constraints.maxWidth, provider),
@@ -188,7 +194,10 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       children: [
         Text(
           'Tổng quan hệ thống',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: DashboardTheme.textMain),
+          style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: DashboardTheme.textMain),
         ),
         Text('Theo dõi hoạt động kinh doanh của GreenFruit Market',
             style: TextStyle(fontSize: 14, color: DashboardTheme.textSub)),
@@ -198,13 +207,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
   Widget _buildStatCards(double maxWidth, DashboardStats? stats) {
     final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
-
-    // Nếu là Mobile thì chia 1 hoặc 2 cột, nếu Tablet/Desktop thì ép 5 cột
     int crossAxisCount = maxWidth < 600 ? 1 : (maxWidth < 1100 ? 2 : 5);
-    
-    // Điều chỉnh tỉ lệ để các ô không bị quá dài khi chia 5
     double childAspectRatio = maxWidth > 1100 ? 1.6 : 2.2;
-
+    final String currentMonth = DateFormat('MM/yyyy').format(DateTime.now());
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -214,7 +219,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       childAspectRatio: childAspectRatio,
       children: [
         _ModernStatCard(
-          title: 'TỔNG DOANH THU',
+          title: 'DOANH THU THÁNG $currentMonth',
           value: currencyFormat.format(stats?.totalRevenue ?? 0),
           icon: Icons.payments_rounded,
           color: const Color(0xFF4E73DF),
@@ -310,7 +315,11 @@ class _ModernStatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
 
-  const _ModernStatCard({required this.title, required this.value, required this.icon, required this.color});
+  const _ModernStatCard(
+      {required this.title,
+      required this.value,
+      required this.icon,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -358,12 +367,12 @@ class _ModernStatCard extends StatelessWidget {
   }
 }
 
-// Các widget biểu đồ giữ nguyên logic của bạn...
 class _ChartContainer extends StatelessWidget {
   final String title, subtitle;
   final Widget child;
 
-  const _ChartContainer({required this.title, required this.subtitle, required this.child});
+  const _ChartContainer(
+      {required this.title, required this.subtitle, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -373,14 +382,20 @@ class _ChartContainer extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: const [BoxShadow(color: DashboardTheme.cardShadow, blurRadius: 15)],
+        boxShadow: const [
+          BoxShadow(color: DashboardTheme.cardShadow, blurRadius: 15)
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          Text(subtitle, style: const TextStyle(fontSize: 13, color: DashboardTheme.textSub)),
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(subtitle,
+              style:
+                  const TextStyle(fontSize: 13, color: DashboardTheme.textSub)),
           const SizedBox(height: 24),
           child,
         ],
@@ -395,39 +410,104 @@ class _AreaChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (data.isEmpty) return const SizedBox(height: 300, child: Center(child: Text('Không có dữ liệu')));
-    final double maxRev = data.map((e) => e.revenue).reduce((a, b) => a > b ? a : b);
+    if (data.isEmpty) {
+      return const SizedBox(
+          height: 300, child: Center(child: Text('Không có dữ liệu')));
+    }
+    final double maxRev =
+        data.map((e) => e.revenue).reduce((a, b) => a > b ? a : b);
     final double maxY = maxRev * 1.2;
+    final currencyFormat = NumberFormat.compact(locale: 'vi_VN');
 
     return SizedBox(
       height: 300,
       child: LineChart(
         LineChartData(
-          gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: Colors.grey[100]!, strokeWidth: 1)),
+          // Cấu hình tương tác với tooltip
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              getTooltipColor: (touchedSpot) =>
+                  const Color(0xFF1E293B).withOpacity(0.9),
+              tooltipRoundedRadius: 8,
+              tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                return touchedBarSpots.map((barSpot) {
+                  final flSpot = barSpot;
+                  final int index = flSpot.x.toInt();
+                  final String formattedDate = DateFormat('dd/MM/yyyy').format(data[index].date);
+                  final String formattedRevenue = '${NumberFormat.decimalPattern().format(flSpot.y)} ₫';
+                  
+                  // Hiển thị cả ngày và số tiền
+                  return LineTooltipItem(
+                    '$formattedDate\n$formattedRevenue',
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  );
+                }).toList();
+              },
+            ),
+            handleBuiltInTouches: true,
+          ),
+          gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              getDrawingHorizontalLine: (v) =>
+                  FlLine(color: Colors.grey[100]!, strokeWidth: 1)),
           titlesData: FlTitlesData(
-            rightTitles: const AxisTitles(),
-            topTitles: const AxisTitles(),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: true, reservedSize: 45, getTitlesWidget: (v, m) => Text(NumberFormat.compact().format(v), style: const TextStyle(fontSize: 10, color: DashboardTheme.textSub)))),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) {
-                if (v.toInt() % 7 == 0 && v.toInt() < data.length) {
-                  return Padding(padding: const EdgeInsets.only(top: 8), child: Text(DateFormat('dd/MM').format(data[v.toInt()].date), style: const TextStyle(fontSize: 10, color: DashboardTheme.textSub)));
-                }
-                return const Text('');
-              }))),
+              rightTitles: const AxisTitles(),
+              topTitles: const AxisTitles(),
+              leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 45,
+                      getTitlesWidget: (v, m) => Text(currencyFormat.format(v),
+                          style: const TextStyle(
+                              fontSize: 10, color: DashboardTheme.textSub)))),
+              bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (v, m) {
+                        if (v.toInt() % 7 == 0 && v.toInt() < data.length) {
+                          return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                  DateFormat('dd/MM').format(data[v.toInt()].date),
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: DashboardTheme.textSub)));
+                        }
+                        return const Text('');
+                      }))),
           borderData: FlBorderData(show: false),
           minY: 0,
           maxY: maxY,
           lineBarsData: [
             LineChartBarData(
-              spots: data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.revenue)).toList(),
-              isCurved: true,
-              color: DashboardTheme.primary,
-              barWidth: 3,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [DashboardTheme.primary.withOpacity(0.3), DashboardTheme.primary.withOpacity(0.0)]))),
-          ])),
+                spots: data
+                    .asMap()
+                    .entries
+                    .map((e) => FlSpot(e.key.toDouble(), e.value.revenue))
+                    .toList(),
+                isCurved: true,
+                color: DashboardTheme.primary,
+                barWidth: 3,
+                // Ẩn dấu chấm hoàn toàn, chỉ hiển thị khi hover qua tooltip
+                dotData: const FlDotData(show: false),
+                belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          DashboardTheme.primary.withOpacity(0.3),
+                          DashboardTheme.primary.withOpacity(0.0)
+                        ]))),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -439,33 +519,46 @@ class _TopProductsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (products.isEmpty) return const Center(child: Text('Không có dữ liệu'));
-    
+
     return Column(
-      children: products.take(5).map((p) => Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: ImageUtils.networkImage(p.imageUrl, width: 45, height: 45, fit: BoxFit.cover),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(p.productName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text('Đã bán: ${p.totalQuantitySold}', style: const TextStyle(fontSize: 11, color: DashboardTheme.textSub)),
-                ],
-              ),
-            ),
-            Text(
-              NumberFormat.compact().format(p.totalRevenue), 
-              style: const TextStyle(color: DashboardTheme.success, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ],
-        ),
-      )).toList(),
+      children: products
+          .take(5)
+          .map((p) => Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: ImageUtils.networkImage(p.imageUrl,
+                          width: 45, height: 45, fit: BoxFit.cover),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(p.productName,
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                          Text('Đã bán: ${p.totalQuantitySold}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: DashboardTheme.textSub)),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      NumberFormat.compact().format(p.totalRevenue),
+                      style: const TextStyle(
+                          color: DashboardTheme.success,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13),
+                    ),
+                  ],
+                ),
+              ))
+          .toList(),
     );
   }
 }
@@ -477,9 +570,14 @@ class _BarChartWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final recent = data.length > 7 ? data.sublist(data.length - 7) : data;
-    if (recent.isEmpty) return const SizedBox(height: 300, child: Center(child: Text('Không có dữ liệu')));
-    
-    final maxY = recent.map((e) => e.orderCount.toDouble()).reduce((a, b) => a > b ? a : b) + 2;
+    if (recent.isEmpty) {
+      return const SizedBox(
+          height: 300, child: Center(child: Text('Không có dữ liệu')));
+    }
+
+    final maxY =
+        recent.map((e) => e.orderCount.toDouble()).reduce((a, b) => a > b ? a : b) +
+            2;
 
     return SizedBox(
       height: 300,
@@ -495,7 +593,8 @@ class _BarChartWidget extends StatelessWidget {
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                 return BarTooltipItem(
                   '${rod.toY.toInt()} đơn',
-                  const TextStyle(color: DashboardTheme.textMain, fontWeight: FontWeight.bold),
+                  const TextStyle(
+                      color: DashboardTheme.textMain, fontWeight: FontWeight.bold),
                 );
               },
             ),
@@ -509,17 +608,21 @@ class _BarChartWidget extends StatelessWidget {
                   if (v.toInt() < recent.length) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: Text(DateFormat('E').format(recent[v.toInt()].date), 
-                        style: const TextStyle(color: DashboardTheme.textSub, fontSize: 11)),
+                      child: Text(DateFormat('E').format(recent[v.toInt()].date),
+                          style: const TextStyle(
+                              color: DashboardTheme.textSub, fontSize: 11)),
                     );
                   }
                   return const Text('');
                 },
               ),
             ),
-            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           gridData: const FlGridData(show: false),
           borderData: FlBorderData(show: false),
@@ -530,12 +633,16 @@ class _BarChartWidget extends StatelessWidget {
                 BarChartRodData(
                   toY: e.value.orderCount.toDouble(),
                   gradient: LinearGradient(
-                    colors: [DashboardTheme.info, DashboardTheme.info.withOpacity(0.6)],
+                    colors: [
+                      DashboardTheme.info,
+                      DashboardTheme.info.withOpacity(0.6)
+                    ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
                   width: 22,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(6)),
                   backDrawRodData: BackgroundBarChartRodData(
                     show: true,
                     toY: maxY,
@@ -557,9 +664,18 @@ class _DonutChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (stats == null) return const SizedBox(height: 300, child: Center(child: Text('Không có dữ liệu')));
+    if (stats == null) {
+      return const SizedBox(
+          height: 300, child: Center(child: Text('Không có dữ liệu')));
+    }
 
-    final labels = ['Thành công', 'Đang xử lý', 'Đang giao', 'Chờ duyệt', 'Đã hủy'];
+    final labels = [
+      'Thành công',
+      'Đang xử lý',
+      'Đang giao',
+      'Chờ duyệt',
+      'Đã hủy'
+    ];
     final colors = [
       DashboardTheme.success,
       DashboardTheme.info,
@@ -584,13 +700,17 @@ class _DonutChartWidget extends StatelessWidget {
               sectionsSpace: 4,
               centerSpaceRadius: 50,
               sections: List.generate(values.length, (i) {
-                final percentage = stats!.total > 0 ? (values[i] / stats!.total * 100) : 0;
+                final percentage =
+                    stats!.total > 0 ? (values[i] / stats!.total * 100) : 0;
                 return PieChartSectionData(
                   color: colors[i],
                   value: values[i].toDouble(),
                   title: percentage > 8 ? '${percentage.toInt()}%' : '',
                   radius: 40,
-                  titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                  titleStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
                 );
               }),
             ),
@@ -607,11 +727,15 @@ class _DonutChartWidget extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 10, height: 10,
-                  decoration: BoxDecoration(color: colors[i], shape: BoxShape.circle),
+                  width: 10,
+                  height: 10,
+                  decoration:
+                      BoxDecoration(color: colors[i], shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 6),
-                Text(labels[i], style: const TextStyle(fontSize: 12, color: DashboardTheme.textMain)),
+                Text(labels[i],
+                    style: const TextStyle(
+                        fontSize: 12, color: DashboardTheme.textMain)),
               ],
             );
           }),

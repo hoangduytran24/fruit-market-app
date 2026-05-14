@@ -15,6 +15,9 @@ public class OrderService : IOrderService
     private readonly ILogger<OrderService> _logger;
     private static readonly Random _random = new();
 
+    // Khai báo hằng số phí ship cố định
+    private const decimal SHIPPING_FEE = 25000m;
+
     public OrderService(
         ApplicationDbContext context,
         IVoucherService voucherService,
@@ -211,6 +214,169 @@ public class OrderService : IOrderService
         };
     }
 
+    // ========== TẠO ĐƠN HÀNG TỪ DANH SÁCH SẢN PHẨM ĐƯỢC CHỌN ==========
+    public async Task<OrderDto> CreateOrderFromSelectedItemsAsync(string userId, CreateOrderFromSelectedItemsDto createOrderDto)
+    {
+        if (createOrderDto.Items == null || !createOrderDto.Items.Any())
+            throw new Exception("Không có sản phẩm nào được chọn");
+
+        if (string.IsNullOrEmpty(createOrderDto.DeliveryAddress))
+            throw new Exception("Địa chỉ giao hàng không được để trống");
+
+        if (string.IsNullOrEmpty(createOrderDto.ReceiverName))
+            throw new Exception("Tên người nhận không được để trống");
+
+        if (string.IsNullOrEmpty(createOrderDto.ReceiverPhone))
+            throw new Exception("Số điện thoại người nhận không được để trống");
+
+        decimal subtotal = 0;
+        var orderItems = new List<(string ProductId, int Quantity, decimal PriceAtTime)>();
+
+        foreach (var item in createOrderDto.Items)
+        {
+            var product = await _context.Products.FindAsync(item.ProductId);
+
+            if (product == null)
+                throw new Exception($"Sản phẩm với ID {item.ProductId} không tồn tại");
+
+            if (product.StockQuantity < item.Quantity)
+                throw new Exception($"Sản phẩm {product.ProductName} không đủ số lượng. Còn lại: {product.StockQuantity}");
+
+            subtotal += product.Price * item.Quantity;
+            orderItems.Add((item.ProductId, item.Quantity, product.Price));
+        }
+
+        // Tính giảm giá từ voucher
+        decimal discountAmount = 0;
+        OrderVoucher? orderVoucher = null;
+
+        if (!string.IsNullOrEmpty(createOrderDto.VoucherCode) && createOrderDto.VoucherCode != "null")
+        {
+            var voucherResult = await _voucherService.ApplyVoucherAsync(new DTOs.Voucher.ApplyVoucherDto
+            {
+                VoucherCode = createOrderDto.VoucherCode,
+                OrderTotal = subtotal
+            });
+
+            if (voucherResult.IsValid && voucherResult.Voucher != null)
+            {
+                discountAmount = voucherResult.DiscountAmount;
+
+                var voucher = await _context.Vouchers.FindAsync(voucherResult.Voucher.VoucherId);
+                if (voucher != null)
+                {
+                    orderVoucher = new OrderVoucher
+                    {
+                        OrderVoucherId = await GenerateOrderVoucherId(),
+                        VoucherId = voucher.VoucherId,
+                        DiscountAmount = discountAmount
+                    };
+
+                    voucher.UsedQuantity += 1;
+                }
+            }
+        }
+
+        // CỘNG TRỰC TIẾP 25,000 PHÍ SHIP VÀO totalAmount
+        decimal totalAmount = subtotal + SHIPPING_FEE;
+
+        // Tạo đơn hàng
+        var order = new Order
+        {
+            OrderId = await GenerateOrderId(),
+            UserId = userId,
+            TotalAmount = totalAmount,
+            DiscountAmount = discountAmount,
+            // FinalAmount được database tự tính = TotalAmount - DiscountAmount
+            Status = "pending",
+            PaymentMethod = createOrderDto.PaymentMethod,
+            DeliveryAddress = createOrderDto.DeliveryAddress,
+            ReceiverName = createOrderDto.ReceiverName,
+            ReceiverPhone = createOrderDto.ReceiverPhone,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Orders.Add(order);
+        await _context.SaveChangesAsync();
+
+        // Lấy thông tin customer
+        var customerName = string.Empty;
+        var user = await _context.Users.FindAsync(userId);
+        if (user != null)
+        {
+            customerName = user.FullName;
+        }
+
+        // Thêm các order items và cập nhật stock
+        foreach (var item in orderItems)
+        {
+            var orderItem = new OrderItem
+            {
+                OrderItemId = await GenerateOrderItemId(),
+                OrderId = order.OrderId,
+                ProductId = item.ProductId,
+                Quantity = item.Quantity,
+                PriceAtTime = item.PriceAtTime
+            };
+            _context.OrderItems.Add(orderItem);
+
+            var product = await _context.Products.FindAsync(item.ProductId);
+            if (product != null)
+            {
+                product.StockQuantity -= item.Quantity;
+            }
+        }
+
+        // Thêm voucher nếu có
+        if (orderVoucher != null)
+        {
+            orderVoucher.OrderId = order.OrderId;
+            _context.OrderVouchers.Add(orderVoucher);
+        }
+
+        // Tạo payment record
+        var payment = new Payment
+        {
+            PaymentId = await GeneratePaymentId(),
+            OrderId = order.OrderId,
+            Amount = totalAmount - discountAmount,
+            PaymentMethod = createOrderDto.PaymentMethod,
+            PaymentStatus = "unpaid"
+        };
+        _context.Payments.Add(payment);
+
+        await _context.SaveChangesAsync();
+
+        // Gửi real-time notifications
+        try
+        {
+            await _realTimeService.NotifyNewOrderToAdminsAsync(new NewOrderNotificationDto
+            {
+                OrderId = order.OrderId,
+                OrderCode = order.OrderId,
+                CustomerName = customerName,
+                TotalAmount = order.FinalAmount,
+                CreatedAt = order.CreatedAt
+            });
+
+            await _realTimeService.NotifyUserAsync(
+                userId,
+                "OrderCreated",
+                $"Đơn hàng {order.OrderId} đã được tạo thành công",
+                new { OrderId = order.OrderId, OrderCode = order.OrderId, Status = order.Status }
+            );
+
+            _logger.LogInformation($"Real-time notifications sent for order {order.OrderId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
+        }
+
+        return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
+    }
+
+    // ========== TẠO ĐƠN HÀNG TỪ GIỎ HÀNG (TOÀN BỘ) ==========
     public async Task<OrderDto> CreateOrderAsync(string userId, CreateOrderDto createOrderDto)
     {
         var cart = await _context.Carts
@@ -262,7 +428,8 @@ public class OrderService : IOrderService
             }
         }
 
-        decimal totalAmount = subtotal + createOrderDto.ShippingFee;
+        // CỘNG TRỰC TIẾP 25,000 PHÍ SHIP VÀO totalAmount
+        decimal totalAmount = subtotal + SHIPPING_FEE;
 
         var order = new Order
         {
@@ -270,6 +437,7 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
+            // FinalAmount được database tự tính
             Status = "pending",
             PaymentMethod = createOrderDto.PaymentMethod,
             DeliveryAddress = createOrderDto.DeliveryAddress,
@@ -328,7 +496,6 @@ public class OrderService : IOrderService
 
         await _context.SaveChangesAsync();
 
-        // ========== GỬI REAL-TIME NOTIFICATION ==========
         try
         {
             await _realTimeService.NotifyNewOrderToAdminsAsync(new NewOrderNotificationDto
@@ -353,11 +520,11 @@ public class OrderService : IOrderService
         {
             _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
         }
-        // =============================================
 
         return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
     }
 
+    // ========== MUA NGAY ==========
     public async Task<OrderDto> BuyNowAsync(string userId, BuyNowDto buyNowDto)
     {
         if (buyNowDto.Quantity <= 0)
@@ -408,7 +575,8 @@ public class OrderService : IOrderService
             }
         }
 
-        decimal totalAmount = subtotal + buyNowDto.ShippingFee;
+        // CỘNG TRỰC TIẾP 25,000 PHÍ SHIP VÀO totalAmount
+        decimal totalAmount = subtotal + SHIPPING_FEE;
 
         var order = new Order
         {
@@ -416,6 +584,7 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
+            // FinalAmount được database tự tính
             Status = "pending",
             PaymentMethod = buyNowDto.PaymentMethod,
             DeliveryAddress = buyNowDto.DeliveryAddress,
@@ -464,7 +633,6 @@ public class OrderService : IOrderService
 
         await _context.SaveChangesAsync();
 
-        // ========== GỬI REAL-TIME NOTIFICATION ==========
         try
         {
             await _realTimeService.NotifyNewOrderToAdminsAsync(new NewOrderNotificationDto
@@ -489,11 +657,11 @@ public class OrderService : IOrderService
         {
             _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
         }
-        // =============================================
 
         return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
     }
 
+    // ========== CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG ==========
     public async Task<OrderDto> UpdateOrderStatusAsync(string id, UpdateOrderStatusDto updateDto)
     {
         var order = await _context.Orders
@@ -546,6 +714,7 @@ public class OrderService : IOrderService
         return await GetOrderByIdAsync(id) ?? throw new Exception("Order not found");
     }
 
+    // ========== HỦY ĐƠN HÀNG ==========
     public async Task<bool> CancelOrderAsync(string id)
     {
         var order = await _context.Orders
