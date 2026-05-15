@@ -10,7 +10,8 @@ class Order {
   final double finalAmount;
   final String status;
   final String? paymentMethod;
-  final String? paymentStatus; 
+  final String? paymentStatus;
+  final String? paymentId;  // THÊM DÒNG NÀY
   final String deliveryAddress;
   final String receiverName;
   final String receiverPhone;
@@ -29,9 +30,10 @@ class Order {
     required this.status,
     this.paymentMethod,
     this.paymentStatus,
+    this.paymentId,  // THÊM DÒNG NÀY
     required this.deliveryAddress,
-    required this.receiverName,      // Thêm
-    required this.receiverPhone,     // Thêm
+    required this.receiverName,
+    required this.receiverPhone,
     required this.createdAt,
     this.items,
     this.voucherCode,
@@ -49,10 +51,11 @@ class Order {
       finalAmount: (json['finalAmount'] as num?)?.toDouble() ?? 0,
       status: json['status'] ?? 'pending',
       paymentMethod: json['paymentMethod'],
-      paymentStatus: json['paymentStatus'] ?? 'unpaid', 
+      paymentStatus: json['paymentStatus'] ?? 'unpaid',
+      paymentId: json['paymentId'],  // THÊM DÒNG NÀY
       deliveryAddress: json['deliveryAddress'] ?? '',
-      receiverName: json['receiverName'] ?? '',      // Thêm
-      receiverPhone: json['receiverPhone'] ?? '',    // Thêm
+      receiverName: json['receiverName'] ?? '',
+      receiverPhone: json['receiverPhone'] ?? '',
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : DateTime.now(),
@@ -77,10 +80,11 @@ class Order {
       'finalAmount': finalAmount,
       'status': status,
       'paymentMethod': paymentMethod,
-      'paymentStatus': paymentStatus, 
+      'paymentStatus': paymentStatus,
+      'paymentId': paymentId,  // THÊM DÒNG NÀY
       'deliveryAddress': deliveryAddress,
-      'receiverName': receiverName,      // Thêm
-      'receiverPhone': receiverPhone,    // Thêm
+      'receiverName': receiverName,
+      'receiverPhone': receiverPhone,
       'createdAt': createdAt.toIso8601String(),
       'items': items?.map((e) => e.toJson()).toList(),
       'voucherCode': voucherCode,

@@ -228,14 +228,14 @@ class ProductProvider extends ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
-      return false;
+      rethrow; // Ném lại exception để UI xử lý
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
   
-  // ========== CẬP NHẬT TRẠNG THÁI (ĐÃ SỬA LỖI) ==========
+  // ========== CẬP NHẬT TRẠNG THÁI ==========
   Future<bool> updateProductStatus(String productId, bool isActive) async {
     _isLoading = true;
     notifyListeners();

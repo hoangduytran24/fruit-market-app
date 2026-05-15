@@ -119,52 +119,125 @@ public class PaymentService : IPaymentService
 
     public async Task<bool> ProcessSePayWebhookAsync(string orderId, decimal amount, string transactionCode, string content)
     {
-        // 1. Tìm payment record
-        var payment = await _context.Payments
-            .FirstOrDefaultAsync(p => p.OrderId == orderId && p.PaymentStatus != "paid");
+        // Sử dụng transaction để đảm bảo atomic
+        using var transaction = await _context.Database.BeginTransactionAsync();
 
-        if (payment == null)
+        try
         {
-            _logger.LogWarning("Không tìm thấy payment record cho order {OrderId}", orderId);
+            // 1. Tìm payment record
+            var payment = await _context.Payments
+                .FirstOrDefaultAsync(p => p.OrderId == orderId && p.PaymentStatus != "paid");
+
+            if (payment == null)
+            {
+                _logger.LogWarning("Không tìm thấy payment record cho order {OrderId}", orderId);
+                return false;
+            }
+
+            // 2. Kiểm tra số tiền
+            if (payment.Amount != amount)
+            {
+                _logger.LogWarning("Số tiền không khớp: expected {Expected}, got {Actual}", payment.Amount, amount);
+                return false;
+            }
+
+            // 3. Tìm và cập nhật pending transaction
+            var pendingTrans = await _context.PendingTransactions
+                .FirstOrDefaultAsync(p => p.OrderId == orderId && p.Status == "pending");
+
+            if (pendingTrans != null)
+            {
+                pendingTrans.Status = "completed";
+                pendingTrans.TransactionCode = transactionCode;
+                pendingTrans.CheckedAt = DateTime.Now;
+            }
+
+            // 4. Cập nhật payment
+            payment.PaymentStatus = "paid";
+            payment.PaidAt = DateTime.UtcNow;
+            payment.TransactionCode = transactionCode;
+            payment.PaymentMethod = "sepay";
+
+            // 5. Cập nhật order status - ĐỔI THÀNH "processing" thay vì "pending"
+            var order = await _context.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.OrderId == orderId);
+
+            if (order == null)
+            {
+                _logger.LogWarning("Không tìm thấy order {OrderId}", orderId);
+                await transaction.RollbackAsync();
+                return false;
+            }
+
+            order.Status = "pending";
+
+            // 6. KIỂM TRA STOCK LẦN CUỐI trước khi xác nhận
+            var orderItems = await _context.OrderItems
+                .Where(oi => oi.OrderId == orderId)
+                .Include(oi => oi.Product)
+                .ToListAsync();
+
+            foreach (var item in orderItems)
+            {
+                if (item.Product == null)
+                {
+                    _logger.LogError($"Không tìm thấy sản phẩm {item.ProductId} cho order {orderId}");
+                    await transaction.RollbackAsync();
+                    return false;
+                }
+
+                // Kiểm tra stock lần cuối
+                if (item.Product.StockQuantity < item.Quantity)
+                {
+                    _logger.LogWarning($"Sản phẩm {item.Product.ProductName} không đủ stock. Cần: {item.Quantity}, Còn: {item.Product.StockQuantity}");
+                    await transaction.RollbackAsync();
+                    return false;
+                }
+
+                // Trừ stock (nếu chưa trừ ở bước tạo order)
+                // LƯU Ý: Nếu đã trừ stock khi tạo order thì comment đoạn này lại
+                item.Product.StockQuantity -= item.Quantity;
+                _logger.LogInformation($"Đã trừ stock sản phẩm {item.Product.ProductId}: -{item.Quantity}, còn lại: {item.Product.StockQuantity}");
+            }
+
+            // 7. XÓA GIỎ HÀNG của user sau khi thanh toán thành công
+            if (!string.IsNullOrEmpty(order.UserId))
+            {
+                var cart = await _context.Carts
+                    .Include(c => c.CartItems)
+                    .FirstOrDefaultAsync(c => c.UserId == order.UserId);
+
+                if (cart != null && cart.CartItems != null && cart.CartItems.Any())
+                {
+                    _context.CartItems.RemoveRange(cart.CartItems);
+                    cart.UpdatedAt = DateTime.UtcNow;
+                    _logger.LogInformation($"Đã xóa {cart.CartItems.Count} sản phẩm khỏi giỏ hàng của user {order.UserId}");
+                }
+                else
+                {
+                    _logger.LogInformation($"Giỏ hàng của user {order.UserId} đã trống hoặc không tồn tại");
+                }
+            }
+
+            // 8. Lưu tất cả thay đổi
+            await _context.SaveChangesAsync();
+
+            // 9. Commit transaction
+            await transaction.CommitAsync();
+
+            _logger.LogInformation($"✅ Thanh toán thành công cho order {orderId}, payment {payment.PaymentId}. " +
+                                   $"Đã trừ stock và xóa giỏ hàng.");
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // Rollback transaction nếu có lỗi
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, $"Lỗi khi xử lý webhook thanh toán cho order {orderId}");
             return false;
         }
-
-        // 2. Kiểm tra số tiền
-        if (payment.Amount != amount)
-        {
-            _logger.LogWarning("Số tiền không khớp: expected {Expected}, got {Actual}", payment.Amount, amount);
-            return false;
-        }
-
-        // 3. Tìm pending transaction
-        var pendingTrans = await _context.PendingTransactions
-            .FirstOrDefaultAsync(p => p.OrderId == orderId && p.Status == "pending");
-
-        if (pendingTrans != null)
-        {
-            pendingTrans.Status = "completed";
-            pendingTrans.TransactionCode = transactionCode;
-            pendingTrans.CheckedAt = DateTime.Now;
-        }
-
-        // 4. Cập nhật payment
-        payment.PaymentStatus = "paid";
-        payment.PaidAt = DateTime.UtcNow;
-        payment.TransactionCode = transactionCode;
-        payment.PaymentMethod = "sepay";
-
-        // 5. Cập nhật order status
-        var order = await _context.Orders.FindAsync(orderId);
-        if (order != null)
-        {
-            order.Status = "paid";
-        }
-
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation($"✅ Thanh toán thành công cho order {orderId}, payment {payment.PaymentId}");
-
-        return true;
     }
 
     private string GenerateVietQRCode(string orderId, decimal amount)

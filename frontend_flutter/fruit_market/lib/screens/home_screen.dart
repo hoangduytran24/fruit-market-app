@@ -42,6 +42,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    // 👈 THÊM: Dừng kiểm tra tài khoản khi app đóng
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.stopAccountStatusCheck();
+    super.dispose();
+  }
+
   Future<void> _loadInitialData() async {
     if (_isInitialized) return;
     
@@ -53,6 +61,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     final voucherProvider = Provider.of<VoucherProvider>(context, listen: false);
     
+    // 👈 THÊM: Set context cho AuthProvider
+    authProvider.setContext(context);
+    
     // Load tất cả dữ liệu cần thiết ngay từ đầu
     await Future.wait([
       _loadUserData(authProvider),
@@ -63,6 +74,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadCart(cartProvider, authProvider),
       _loadVouchers(voucherProvider, authProvider),
     ]);
+    
+    // 👈 THÊM: Bắt đầu kiểm tra trạng thái tài khoản định kỳ nếu đã login
+    if (authProvider.isAuthenticated) {
+      authProvider.startAccountStatusCheck();
+    }
     
     _isInitialized = true;
   }
@@ -118,7 +134,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final cartProvider = Provider.of<CartProvider>(context);
-    // final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
       body: _screens[_selectedIndex],

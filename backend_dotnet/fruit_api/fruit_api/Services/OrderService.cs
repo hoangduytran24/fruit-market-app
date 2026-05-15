@@ -239,6 +239,10 @@ public class OrderService : IOrderService
             if (product == null)
                 throw new Exception($"Sản phẩm với ID {item.ProductId} không tồn tại");
 
+            // ✅ KIỂM TRA SẢN PHẨM CÒN KINH DOANH KHÔNG
+            if (!product.IsActive)
+                throw new Exception($"Sản phẩm '{product.ProductName}' đã ngừng kinh doanh, không thể thanh toán");
+
             if (product.StockQuantity < item.Quantity)
                 throw new Exception($"Sản phẩm {product.ProductName} không đủ số lượng. Còn lại: {product.StockQuantity}");
 
@@ -287,7 +291,6 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
-            // FinalAmount được database tự tính = TotalAmount - DiscountAmount
             Status = "pending",
             PaymentMethod = createOrderDto.PaymentMethod,
             DeliveryAddress = createOrderDto.DeliveryAddress,
@@ -385,16 +388,20 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(c => c.UserId == userId);
 
         if (cart == null || cart.CartItems == null || !cart.CartItems.Any())
-            throw new Exception("Cart is empty");
+            throw new Exception("Giỏ hàng trống");
 
         decimal subtotal = 0;
         foreach (var item in cart.CartItems)
         {
             if (item.Product == null)
-                throw new Exception($"Product not found");
+                throw new Exception($"Sản phẩm không tồn tại");
+
+            // ✅ KIỂM TRA SẢN PHẨM CÒN KINH DOANH KHÔNG
+            if (!item.Product.IsActive)
+                throw new Exception($"Sản phẩm '{item.Product.ProductName}' đã ngừng kinh doanh, không thể thanh toán. Vui lòng xóa sản phẩm này khỏi giỏ hàng.");
 
             if (item.Product.StockQuantity < item.Quantity)
-                throw new Exception($"Not enough stock for product: {item.Product.ProductName}");
+                throw new Exception($"Sản phẩm {item.Product.ProductName} không đủ số lượng. Còn lại: {item.Product.StockQuantity}");
 
             subtotal += item.Quantity * item.PriceAtTime;
         }
@@ -437,7 +444,6 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
-            // FinalAmount được database tự tính
             Status = "pending",
             PaymentMethod = createOrderDto.PaymentMethod,
             DeliveryAddress = createOrderDto.DeliveryAddress,
@@ -528,21 +534,25 @@ public class OrderService : IOrderService
     public async Task<OrderDto> BuyNowAsync(string userId, BuyNowDto buyNowDto)
     {
         if (buyNowDto.Quantity <= 0)
-            throw new Exception("Quantity must be greater than 0");
+            throw new Exception("Số lượng phải lớn hơn 0");
 
         if (string.IsNullOrEmpty(buyNowDto.DeliveryAddress))
-            throw new Exception("Delivery address is required");
+            throw new Exception("Địa chỉ giao hàng không được để trống");
 
         if (string.IsNullOrEmpty(buyNowDto.PaymentMethod))
-            throw new Exception("Payment method is required");
+            throw new Exception("Phương thức thanh toán không được để trống");
 
         var product = await _context.Products.FindAsync(buyNowDto.ProductId);
 
         if (product == null)
-            throw new Exception("Product not found");
+            throw new Exception("Sản phẩm không tồn tại");
+
+        // ✅ KIỂM TRA SẢN PHẨM CÒN KINH DOANH KHÔNG
+        if (!product.IsActive)
+            throw new Exception($"Sản phẩm '{product.ProductName}' đã ngừng kinh doanh, không thể mua");
 
         if (product.StockQuantity < buyNowDto.Quantity)
-            throw new Exception($"Not enough stock for product: {product.ProductName}. Available: {product.StockQuantity}");
+            throw new Exception($"Sản phẩm {product.ProductName} không đủ số lượng. Còn lại: {product.StockQuantity}");
 
         decimal subtotal = product.Price * buyNowDto.Quantity;
 
@@ -584,7 +594,6 @@ public class OrderService : IOrderService
             UserId = userId,
             TotalAmount = totalAmount,
             DiscountAmount = discountAmount,
-            // FinalAmount được database tự tính
             Status = "pending",
             PaymentMethod = buyNowDto.PaymentMethod,
             DeliveryAddress = buyNowDto.DeliveryAddress,

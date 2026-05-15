@@ -39,6 +39,36 @@ class MyHttpOverrides extends HttpOverrides {
   }
 }
 
+// ===============================
+// THÊM CLASS AppInitializer NÀY
+// ===============================
+class AppInitializer extends StatefulWidget {
+  final Widget child;
+  
+  const AppInitializer({super.key, required this.child});
+  
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  @override
+  void initState() {
+    super.initState();
+    // Set context cho AuthProvider sau khi build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      authProvider.setContext(context);
+    });
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+}
+// ===============================
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -58,49 +88,51 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RealTimeProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
-      child: MaterialApp(
-        title: 'GreenFruit Market',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.green,
-          visualDensity: VisualDensity.adaptivePlatformDensity,
-          fontFamily: 'Roboto',
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            centerTitle: true,
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
+      child: AppInitializer(  // 👈 BỌC AppInitializer VÀO ĐÂY
+        child: MaterialApp(
+          title: 'GreenFruit Market',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            primarySwatch: Colors.green,
+            visualDensity: VisualDensity.adaptivePlatformDensity,
+            fontFamily: 'Roboto',
+            appBarTheme: const AppBarTheme(
+              elevation: 0,
+              centerTitle: true,
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black87,
+            ),
+            scaffoldBackgroundColor: const Color(0xFFF8F9FA),
           ),
-          scaffoldBackgroundColor: const Color(0xFFF8F9FA),
-        ),
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const SplashScreen(),
-          '/home': (context) => const HomeScreen(),
-          '/login': (context) => const LoginScreen(),
-          '/register': (context) => const RegisterScreen(),
-          '/cart': (context) => const CartScreen(),
-          '/favorites': (context) => const FavoriteScreen(),
-          '/account': (context) => const AccountScreen(),
-          '/orders': (context) => const OrdersScreen(),
-          '/vouchers': (context) => const VouchersScreen(),
-          '/notifications': (context) => const NotificationHandler(child: HomeScreen()),
-        },
-        onGenerateRoute: (settings) {
-          if (settings.name == '/product-detail') {
-            final product = settings.arguments as Product;
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const SplashScreen(),
+            '/home': (context) => const HomeScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegisterScreen(),
+            '/cart': (context) => const CartScreen(),
+            '/favorites': (context) => const FavoriteScreen(),
+            '/account': (context) => const AccountScreen(),
+            '/orders': (context) => const OrdersScreen(),
+            '/vouchers': (context) => const VouchersScreen(),
+            '/notifications': (context) => const NotificationHandler(child: HomeScreen()),
+          },
+          onGenerateRoute: (settings) {
+            if (settings.name == '/product-detail') {
+              final product = settings.arguments as Product;
+              return MaterialPageRoute(
+                builder: (context) => ProductDetailScreen(product: product),
+              );
+            }
+            return null;
+          },
+          onUnknownRoute: (settings) {
             return MaterialPageRoute(
-              builder: (context) => ProductDetailScreen(product: product),
+              builder: (context) => const HomeScreen(),
             );
-          }
-          return null;
-        },
-        onUnknownRoute: (settings) {
-          return MaterialPageRoute(
-            builder: (context) => const HomeScreen(),
-          );
-        },
-      ),
+          },
+        ),
+      ), // 👈 ĐÓNG NGOẶC CỦA AppInitializer
     );
   }
 }

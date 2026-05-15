@@ -121,10 +121,11 @@ public class CartService : ICartService
                     ProductName = ci.Product?.ProductName ?? string.Empty,
                     ImageUrl = ci.Product?.ImageUrl,
                     Unit = ci.Product?.Unit ?? string.Empty,
-                    stockQuantity = ci.Product?.StockQuantity ?? 0, // ✅ Stock real-time từ Product
-                    Price = ci.Product?.Price ?? ci.PriceAtTime,    // ✅ Giá real-time từ Product
+                    stockQuantity = ci.Product?.StockQuantity ?? 0,
+                    Price = ci.Product?.Price ?? ci.PriceAtTime,
                     Quantity = ci.Quantity,
-                    Subtotal = ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)
+                    Subtotal = ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime),
+                    IsActive = ci.Product?.IsActive ?? true  // ✅ THÊM DÒNG NÀY
                 }).ToList() ?? new List<CartItemDto>(),
                 TotalItems = cart.CartItems?.Sum(ci => ci.Quantity) ?? 0,
                 TotalPrice = cart.CartItems?.Sum(ci => ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)) ?? 0
@@ -199,11 +200,12 @@ public class CartService : ICartService
                     stockQuantity = ci.Product?.StockQuantity ?? 0,
                     Price = ci.Product?.Price ?? ci.PriceAtTime,
                     Quantity = ci.Quantity,
-                    Subtotal = ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)
+                    Subtotal = ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime),
+                    IsActive = ci.Product?.IsActive ?? true  // ✅ THÊM DÒNG NÀY
                 }).ToList() ?? new List<CartItemDto>(),
                 TotalItems = cart.CartItems?.Sum(ci => ci.Quantity) ?? 0,
                 TotalPrice = cart.CartItems?.Sum(ci => ci.Quantity * (ci.Product?.Price ?? ci.PriceAtTime)) ?? 0,
-                HasAutoCorrected = hasChanges  // ✅ Thêm flag để frontend biết
+                HasAutoCorrected = hasChanges
             };
 
             return cartDto;
@@ -245,10 +247,11 @@ public class CartService : ICartService
                 throw new Exception($"Sản phẩm với ID {addToCartDto.ProductId} không tồn tại");
             }
 
+            // ✅ KIỂM TRA SẢN PHẨM CÒN KINH DOANH KHÔNG
             if (!product.IsActive)
             {
                 _logger.LogWarning("Product is not active: {ProductId}", addToCartDto.ProductId);
-                throw new Exception("Sản phẩm hiện không khả dụng");
+                throw new Exception("Sản phẩm đã ngừng kinh doanh, không thể thêm vào giỏ hàng");
             }
 
             // Check if product already in cart
@@ -346,6 +349,13 @@ public class CartService : ICartService
                 throw new Exception("Item not found in cart");
             }
 
+            // ✅ KIỂM TRA SẢN PHẨM CÒN KINH DOANH KHÔNG
+            if (cartItem.Product != null && !cartItem.Product.IsActive)
+            {
+                _logger.LogWarning("Product is not active: {ProductId}", productId);
+                throw new Exception("Sản phẩm đã ngừng kinh doanh, không thể cập nhật số lượng. Vui lòng xóa sản phẩm khỏi giỏ hàng.");
+            }
+
             if (updateDto.Quantity <= 0)
             {
                 _logger.LogInformation("Removing item from cart. User: {UserId}, Product: {ProductId}", userId, productId);
@@ -366,7 +376,6 @@ public class CartService : ICartService
                     _logger.LogWarning("Not enough stock. Product: {ProductId}, Requested: {Requested}, Available: {Available}",
                         productId, updateDto.Quantity, product.StockQuantity);
 
-                    // Gợi ý số lượng tối đa có thể đặt
                     throw new Exception($"Chỉ còn {product.StockQuantity} sản phẩm trong kho. Bạn có thể đặt tối đa {product.StockQuantity} sản phẩm.");
                 }
 

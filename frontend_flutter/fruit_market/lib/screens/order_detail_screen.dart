@@ -4,6 +4,7 @@ import '../models/Order.dart';
 import '../models/OrderItem.dart';
 import '../providers/order_provider.dart';
 import '../utils/image_utils.dart';
+import 'vietqr_payment_screen.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final Order order;
@@ -17,15 +18,18 @@ class OrderDetailScreen extends StatefulWidget {
 class _OrderDetailScreenState extends State<OrderDetailScreen> {
   bool _isLoading = false;
   bool _isLoadingDetails = true;
+  bool _isProcessingPayment = false;
   Order? _orderDetails;
   
-  // Phí vận chuyển cố định (chỉ dùng để hiển thị)
   static const double _shippingFee = 25000;
 
   @override
   void initState() {
     super.initState();
-    _loadOrderDetails();
+    // SỬA LỖI: Dùng addPostFrameCallback để gọi sau khi build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOrderDetails();
+    });
   }
 
   Future<void> _loadOrderDetails() async {
@@ -218,19 +222,72 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     );
   }
 
+  // SỬA: Hàm tiếp tục thanh toán - điều hướng đến SePayPaymentScreen
+  Future<void> _continuePayment() async {
+    final order = _orderDetails ?? widget.order;
+
+    // Chỉ cho phép thanh toán nếu là chuyển khoản và chưa thanh toán
+    if (order.paymentMethod != 'bank_transfer' || order.paymentStatus != 'unpaid') {
+      return;
+    }
+
+    setState(() {
+      _isProcessingPayment = true;
+    });
+
+    try {
+      // Điều hướng đến màn hình thanh toán SePay
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SePayPaymentScreen(
+            orderId: order.orderId,
+            amount: order.totalAmount,
+            existingPaymentId: order.paymentId, // Truyền paymentId nếu có
+          ),
+        ),
+      );
+
+      // Sau khi quay lại từ màn hình thanh toán, refresh lại chi tiết đơn hàng
+      if (mounted && result == true) {
+        await _loadOrderDetails();
+        
+        // Hiển thị thông báo thành công nếu thanh toán thành công
+        if (_orderDetails?.paymentStatus == 'paid') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Thanh toán thành công!'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Lỗi khi tiếp tục thanh toán: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể chuyển đến trang thanh toán'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingPayment = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = _orderDetails ?? widget.order;
     
     // Tính toán hiển thị:
-    // Tạm tính = totalAmount (đã bao gồm phí ship từ backend)
-    // Phí ship = 25k
-    // Thành tiền = totalAmount (đã bao gồm ship)
-    // Nhưng để hiển thị rõ ràng, ta tách:
-    // - Tiền hàng = totalAmount - shippingFee
-    // - Phí ship = 25000
-    // - Tổng = totalAmount
-    
     final subtotal = order.totalAmount - _shippingFee; // Tiền hàng (chưa ship)
     final hasDiscount = order.discountAmount > 0;
     final finalTotal = order.totalAmount; // Đã bao gồm ship và giảm giá
@@ -650,7 +707,51 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 80),
+                  // ========== NÚT THANH TOÁN NGAY (CHỈ HIỂN THỊ CHO BANK_TRANSFER CHƯA THANH TOÁN) ==========
+                  if (order.paymentMethod == 'bank_transfer' && order.paymentStatus == 'unpaid') ...[
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isProcessingPayment ? null : _continuePayment,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1B5E20),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                        ),
+                        child: _isProcessingPayment
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.payment, size: 22),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'THANH TOÁN NGAY',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

@@ -37,9 +37,9 @@ public class WebhookController : ControllerBase
                 ? webhookData.ReferenceCode
                 : webhookData.Code;
 
-            // Trích xuất OrderId từ nội dung (GUID format)
-            var orderIdMatch = Regex.Match(content,
-                @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+            // Trích xuất OrderId từ nội dung
+            // Hỗ trợ các định dạng: OD448894, DH123, ORD001, hoặc GUID
+            var orderIdMatch = Regex.Match(content, @"(OD\d+|DH\d+|ORD\d+|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})");
 
             if (!orderIdMatch.Success)
             {

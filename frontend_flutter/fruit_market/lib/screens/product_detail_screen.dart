@@ -61,10 +61,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     }
 
     if (imagePath.startsWith('/')) {
-      return 'https://10.0.2.2:7262$imagePath';
+      return 'http://10.0.2.2:5280$imagePath';
     }
 
-    return 'https://10.0.2.2:7262/$imagePath';
+    return 'http://10.0.2.2:5280/$imagePath';
   }
 
   void _updateReviewCount(int count) {

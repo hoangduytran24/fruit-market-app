@@ -8,10 +8,10 @@ class ApiService {
   static String get baseUrl {
     if (kIsWeb) {
       // Khi chạy Web trên trình duyệt
-      return 'https://localhost:7262/api/';
+      return 'http://localhost:5280/api/';
     } else {
       // Khi chạy trên giả lập Android (10.0.2.2 trỏ về localhost của máy tính)
-      return 'https://10.0.2.2:7262/api/';
+      return 'http://10.0.2.2:5280/api/';
     }
   }
 

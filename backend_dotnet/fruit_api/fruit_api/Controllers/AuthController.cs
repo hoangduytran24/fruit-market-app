@@ -11,10 +11,12 @@ namespace fruit_api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ILogger<AuthController> _logger; // 👈 THÊM logger
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ILogger<AuthController> logger) // 👈 SỬA constructor
     {
         _authService = authService;
+        _logger = logger;
     }
 
     [HttpPost("register")]
@@ -45,14 +47,12 @@ public class AuthController : ControllerBase
         }
     }
 
-    // THÊM API NÀY: Lấy thông tin user hiện tại từ token
     [Authorize]
     [HttpGet("me")]
     public async Task<IActionResult> GetCurrentUser()
     {
         try
         {
-            // Lấy UserId từ token
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             if (string.IsNullOrEmpty(userId))
@@ -60,7 +60,6 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Invalid token" });
             }
 
-            // Gọi service để lấy thông tin user
             var user = await _authService.GetUserByIdAsync(userId);
 
             if (user == null)
@@ -73,6 +72,51 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ===============================
+    // 🆕 THÊM ENDPOINT NÀY - KIỂM TRA TRẠNG THÁI TÀI KHOẢN
+    // ===============================
+    [Authorize]
+    [HttpGet("check-status")]
+    public async Task<IActionResult> CheckAccountStatus()
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { success = false, message = "Không xác định được người dùng" });
+            }
+
+            var result = await _authService.CheckAccountStatusAsync(userId);
+
+            if (!result.IsActive)
+            {
+                _logger.LogWarning($"Tài khoản {userId} đã bị khóa, status: {result.Status}");
+
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    success = false,
+                    message = "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ hỗ trợ.",
+                    code = "ACCOUNT_LOCKED",
+                    status = result.Status
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Tài khoản đang hoạt động",
+                data = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi kiểm tra trạng thái tài khoản");
+            return StatusCode(500, new { success = false, message = ex.Message });
         }
     }
 }

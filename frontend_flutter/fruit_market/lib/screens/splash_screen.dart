@@ -53,19 +53,21 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     });
   }
 
-  // SỬA ĐỔI CHÍNH: Đảm bảo fetch dữ liệu mới nhất
   Future<void> _loadInitialData() async {
     if (_isDataLoaded) return;
     
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       
+      // 👈 THÊM: Set context cho AuthProvider
+      authProvider.setContext(context);
+      
       // Bước 1: Kiểm tra đăng nhập trước
       await authProvider.checkLoginStatus();
 
-      // Bước 2: Load song song toàn bộ dữ liệu (Ép buộc gọi API mới)
+      // Bước 2: Load song song toàn bộ dữ liệu
       await Future.wait([
-        Provider.of<ProductProvider>(context, listen: false).loadProducts(), // Đảm bảo hàm này gọi API
+        Provider.of<ProductProvider>(context, listen: false).loadProducts(),
         Provider.of<CategoryProvider>(context, listen: false).fetchCategories(),
         Provider.of<VoucherProvider>(context, listen: false).loadAvailableVouchers(),
         
@@ -76,6 +78,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         ]
       ]);
       
+      // 👈 THÊM: Nếu đã đăng nhập, bắt đầu kiểm tra trạng thái tài khoản định kỳ
+      if (authProvider.isAuthenticated) {
+        authProvider.startAccountStatusCheck();
+      }
+      
       _isDataLoaded = true;
       
       if (mounted) {
@@ -83,7 +90,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           _isLoading = false;
         });
         
-        // Giữ lại 1s để hiệu ứng mượt mà như bản cũ
         await Future.delayed(const Duration(seconds: 1));
         
         if (mounted) {
@@ -111,7 +117,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    // GIỮ NGUYÊN UI GỐC 100%
     return Scaffold(
       backgroundColor: const Color(0xFF0B2A1F),
       body: Stack(
@@ -126,7 +131,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
-                // Chỉ áp dụng hiệu ứng Scale/Fade khi đang load hoặc mới bắt đầu
                 if (_isLoading || _animationController.value < 1.0) {
                   return Opacity(
                     opacity: _fadeAnimation.value,
@@ -177,7 +181,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo Container
                         Container(
                           width: 100,
                           height: 100,

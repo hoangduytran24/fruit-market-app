@@ -34,8 +34,8 @@ public class ProductsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting products");
-            return StatusCode(500, new { message = "An error occurred while getting products" });
+            _logger.LogError(ex, "Lỗi khi lấy danh sách sản phẩm");
+            return StatusCode(500, new { message = "Có lỗi xảy ra khi lấy danh sách sản phẩm" });
         }
     }
 
@@ -55,8 +55,8 @@ public class ProductsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching products");
-            return StatusCode(500, new { message = "An error occurred while searching products" });
+            _logger.LogError(ex, "Lỗi khi tìm kiếm sản phẩm");
+            return StatusCode(500, new { message = "Có lỗi xảy ra khi tìm kiếm sản phẩm" });
         }
     }
 
@@ -73,8 +73,8 @@ public class ProductsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting products by category");
-            return StatusCode(500, new { message = "An error occurred while getting products" });
+            _logger.LogError(ex, "Lỗi khi lấy sản phẩm theo danh mục");
+            return StatusCode(500, new { message = "Có lỗi xảy ra khi lấy sản phẩm theo danh mục" });
         }
     }
 
@@ -88,14 +88,14 @@ public class ProductsController : ControllerBase
         {
             var product = await _productService.GetProductByIdAsync(id);
             if (product == null)
-                return NotFound(new { message = $"Product with ID {id} not found" });
+                return NotFound(new { message = $"Không tìm thấy sản phẩm với ID {id}" });
 
             return Ok(product);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting product by ID: {ProductId}", id);
-            return StatusCode(500, new { message = "An error occurred while getting product" });
+            _logger.LogError(ex, "Lỗi khi lấy sản phẩm theo ID: {ProductId}", id);
+            return StatusCode(500, new { message = "Có lỗi xảy ra khi lấy thông tin sản phẩm" });
         }
     }
 
@@ -108,19 +108,18 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            // Validate dữ liệu đầu vào
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             var product = await _productService.CreateProductAsync(createDto);
 
-            _logger.LogInformation("Product created by admin: {ProductId}", product.ProductId);
+            _logger.LogInformation("Admin đã tạo sản phẩm: {ProductId}", product.ProductId);
 
             return CreatedAtAction(nameof(GetById), new { id = product.ProductId }, product);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating product");
+            _logger.LogError(ex, "Lỗi khi tạo sản phẩm");
             return BadRequest(new { message = ex.Message });
         }
     }
@@ -134,25 +133,24 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            // Validate dữ liệu đầu vào
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             var product = await _productService.UpdateProductAsync(id, updateDto);
 
-            _logger.LogInformation("Product updated by admin: {ProductId}", id);
+            _logger.LogInformation("Admin đã cập nhật sản phẩm: {ProductId}", id);
 
             return Ok(product);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi cập nhật sản phẩm: {ProductId}", id);
             return BadRequest(new { message = ex.Message });
         }
     }
 
     /// <summary>
-    /// Xóa sản phẩm (chỉ admin)
+    /// Xóa sản phẩm (chỉ admin) - Chỉ xóa được sản phẩm chưa có đơn hàng
     /// </summary>
     [HttpDelete("{id}")]
     [Authorize(Roles = "admin")]
@@ -161,19 +159,23 @@ public class ProductsController : ControllerBase
         try
         {
             await _productService.DeleteProductAsync(id);
-
-            _logger.LogInformation("Product deleted by admin: {ProductId}", id);
-
-            return Ok(new { message = "Product deleted successfully" });
+            _logger.LogInformation("Admin đã xóa sản phẩm: {ProductId}", id);
+            return Ok(new { message = "Xóa sản phẩm thành công" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi xóa sản phẩm: {ProductId}", id);
             return BadRequest(new { message = ex.Message });
         }
     }
 
-
+    /// <summary>
+    /// Cập nhật trạng thái kinh doanh của sản phẩm (chỉ admin)
+    /// </summary>
     [HttpPatch("{id}/active")]
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> SetActive(string id, [FromBody] bool isActive)
@@ -181,16 +183,18 @@ public class ProductsController : ControllerBase
         try
         {
             await _productService.UpdateProductStatusAsync(id, isActive);
-            return Ok(new { id, isActive });
+            var trangThai = isActive ? "kích hoạt" : "ngừng kinh doanh";
+            return Ok(new { id, isActive, message = $"Đã {trangThai} sản phẩm" });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            _logger.LogError(ex, "Lỗi khi cập nhật trạng thái sản phẩm: {ProductId}", id);
+            return BadRequest(new { message = ex.Message });
         }
     }
 
     /// <summary>
-    /// Khôi phục sản phẩm đã xóa (chỉ admin)
+    /// Khôi phục sản phẩm đã ngừng kinh doanh (chỉ admin)
     /// </summary>
     [HttpPatch("{id}/restore")]
     [Authorize(Roles = "admin")]
@@ -199,14 +203,12 @@ public class ProductsController : ControllerBase
         try
         {
             await _productService.RestoreProductAsync(id);
-
-            _logger.LogInformation("Product restored by admin: {ProductId}", id);
-
-            return Ok(new { message = "Product restored successfully" });
+            _logger.LogInformation("Admin đã khôi phục sản phẩm: {ProductId}", id);
+            return Ok(new { message = "Khôi phục sản phẩm thành công" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error restoring product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi khôi phục sản phẩm: {ProductId}", id);
             return BadRequest(new { message = ex.Message });
         }
     }
@@ -221,14 +223,12 @@ public class ProductsController : ControllerBase
         try
         {
             await _productService.UpdateStockAsync(id, quantity);
-
-            _logger.LogInformation("Product stock updated by admin: {ProductId} - New stock: {Quantity}", id, quantity);
-
-            return Ok(new { message = "Stock updated successfully" });
+            _logger.LogInformation("Admin đã cập nhật tồn kho sản phẩm: {ProductId} - Tồn mới: {Quantity}", id, quantity);
+            return Ok(new { message = "Cập nhật tồn kho thành công" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating stock for product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi cập nhật tồn kho sản phẩm: {ProductId}", id);
             return BadRequest(new { message = ex.Message });
         }
     }
@@ -246,13 +246,13 @@ public class ProductsController : ControllerBase
             {
                 productId = id,
                 inStock = inStock,
-                message = inStock ? "Product is in stock" : "Product is out of stock"
+                message = inStock ? "Sản phẩm còn hàng" : "Sản phẩm đã hết hàng"
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking stock for product: {ProductId}", id);
-            return StatusCode(500, new { message = "An error occurred while checking stock" });
+            _logger.LogError(ex, "Lỗi khi kiểm tra tồn kho sản phẩm: {ProductId}", id);
+            return StatusCode(500, new { message = "Có lỗi xảy ra khi kiểm tra tồn kho" });
         }
     }
 }

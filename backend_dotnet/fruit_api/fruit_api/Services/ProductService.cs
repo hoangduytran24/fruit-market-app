@@ -103,7 +103,7 @@ public class ProductService : IProductService
                     SupplierAddress = p.Supplier?.Address ?? string.Empty,
                     Unit = p.Unit,
                     Price = p.Price,
-                    StockQuantity = p.StockQuantity,  // SỬA: Dùng stock từ Products
+                    StockQuantity = p.StockQuantity,
                     ImageUrl = p.ImageUrl,
                     Description = p.Description,
                     IsActive = p.IsActive,
@@ -134,8 +134,8 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting products");
-            throw new Exception($"Error getting products: {ex.Message}", ex);
+            _logger.LogError(ex, "Lỗi khi lấy danh sách sản phẩm");
+            throw new Exception($"Lỗi khi lấy danh sách sản phẩm: {ex.Message}", ex);
         }
     }
 
@@ -169,7 +169,7 @@ public class ProductService : IProductService
                 SupplierName = product.Supplier?.SupplierName ?? string.Empty,
                 Unit = product.Unit,
                 Price = product.Price,
-                StockQuantity = product.StockQuantity,  // SỬA: Dùng stock từ Products
+                StockQuantity = product.StockQuantity,
                 Description = product.Description,
                 ImageUrl = product.ImageUrl,
                 IsActive = product.IsActive,
@@ -198,7 +198,7 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting product by ID: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi lấy sản phẩm theo ID: {ProductId}", id);
             throw;
         }
     }
@@ -234,7 +234,7 @@ public class ProductService : IProductService
                     CategoryName = p.Category?.CategoryName ?? string.Empty,
                     Unit = p.Unit,
                     Price = p.Price,
-                    StockQuantity = p.StockQuantity,  // SỬA: Dùng stock từ Products
+                    StockQuantity = p.StockQuantity,
                     ImageUrl = p.ImageUrl,
                     Origin = p.Origin,
                     AverageRating = p.Reviews != null && p.Reviews.Any()
@@ -254,7 +254,7 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching products by name: {Keyword}", keyword);
+            _logger.LogError(ex, "Lỗi khi tìm kiếm sản phẩm theo tên: {Keyword}", keyword);
             throw;
         }
     }
@@ -286,7 +286,7 @@ public class ProductService : IProductService
                     CategoryName = p.Category?.CategoryName ?? string.Empty,
                     Unit = p.Unit,
                     Price = p.Price,
-                    StockQuantity = p.StockQuantity,  // SỬA: Dùng stock từ Products
+                    StockQuantity = p.StockQuantity,
                     ImageUrl = p.ImageUrl,
                     Origin = p.Origin,
                     AverageRating = p.Reviews != null && p.Reviews.Any()
@@ -306,7 +306,7 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting products by category: {CategoryId}", categoryId);
+            _logger.LogError(ex, "Lỗi khi lấy sản phẩm theo danh mục: {CategoryId}", categoryId);
             throw;
         }
     }
@@ -323,17 +323,17 @@ public class ProductService : IProductService
 
             var category = await _context.Categories.FindAsync(createDto.CategoryId);
             if (category == null)
-                throw new Exception($"Category with ID {createDto.CategoryId} not found");
+                throw new Exception($"Không tìm thấy danh mục với ID {createDto.CategoryId}");
 
             var supplier = await _context.Suppliers.FindAsync(createDto.SupplierId);
             if (supplier == null)
-                throw new Exception($"Supplier with ID {createDto.SupplierId} not found");
+                throw new Exception($"Không tìm thấy nhà cung cấp với ID {createDto.SupplierId}");
 
             var existingProduct = await _context.Products
                 .FirstOrDefaultAsync(p => p.ProductName.ToLower() == createDto.ProductName.ToLower());
 
             if (existingProduct != null)
-                throw new Exception($"Product with name '{createDto.ProductName}' already exists");
+                throw new Exception($"Sản phẩm với tên '{createDto.ProductName}' đã tồn tại");
 
             string productId;
             int attempt = 0;
@@ -342,7 +342,7 @@ public class ProductService : IProductService
                 productId = GenerateId("PR");
                 attempt++;
                 if (attempt > 10)
-                    throw new Exception("Could not generate unique product ID");
+                    throw new Exception("Không thể tạo mã sản phẩm duy nhất");
             } while (await _context.Products.AnyAsync(p => p.ProductId == productId));
 
             var product = new Product
@@ -364,7 +364,7 @@ public class ProductService : IProductService
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Product created successfully: {ProductId} - {ProductName}",
+            _logger.LogInformation("Sản phẩm đã được tạo thành công: {ProductId} - {ProductName}",
                 product.ProductId, product.ProductName);
 
             return new ProductDto
@@ -387,7 +387,7 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating product");
+            _logger.LogError(ex, "Lỗi khi tạo sản phẩm");
             throw;
         }
     }
@@ -415,22 +415,22 @@ public class ProductService : IProductService
                 .FirstOrDefaultAsync(p => p.ProductId == id);
 
             if (product == null)
-                throw new Exception($"Product with ID {id} not found");
+                throw new Exception($"Không tìm thấy sản phẩm với ID {id}");
 
             var category = await _context.Categories.FindAsync(updateDto.CategoryId);
             if (category == null)
-                throw new Exception($"Category with ID {updateDto.CategoryId} not found");
+                throw new Exception($"Không tìm thấy danh mục với ID {updateDto.CategoryId}");
 
             var supplier = await _context.Suppliers.FindAsync(updateDto.SupplierId);
             if (supplier == null)
-                throw new Exception($"Supplier with ID {updateDto.SupplierId} not found");
+                throw new Exception($"Không tìm thấy nhà cung cấp với ID {updateDto.SupplierId}");
 
             var existingProduct = await _context.Products
                 .FirstOrDefaultAsync(p => p.ProductName.ToLower() == updateDto.ProductName.ToLower()
                     && p.ProductId != id);
 
             if (existingProduct != null)
-                throw new Exception($"Product with name '{updateDto.ProductName}' already exists");
+                throw new Exception($"Sản phẩm với tên '{updateDto.ProductName}' đã tồn tại");
 
             product.CategoryId = updateDto.CategoryId;
             product.SupplierId = updateDto.SupplierId;
@@ -447,7 +447,7 @@ public class ProductService : IProductService
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Product updated successfully: {ProductId}", product.ProductId);
+            _logger.LogInformation("Sản phẩm đã được cập nhật thành công: {ProductId}", product.ProductId);
 
             return new ProductDto
             {
@@ -459,7 +459,7 @@ public class ProductService : IProductService
                 SupplierName = supplier.SupplierName,
                 Unit = product.Unit,
                 Price = product.Price,
-                StockQuantity = product.StockQuantity,  // SỬA: Dùng stock từ Products
+                StockQuantity = product.StockQuantity,
                 Description = product.Description,
                 ImageUrl = product.ImageUrl,
                 IsActive = product.IsActive,
@@ -469,7 +469,7 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi cập nhật sản phẩm: {ProductId}", id);
             throw;
         }
     }
@@ -484,29 +484,34 @@ public class ProductService : IProductService
                 .FirstOrDefaultAsync(p => p.ProductId == id);
 
             if (product == null)
-                throw new Exception($"Product with ID {id} not found");
+                throw new Exception($"Không tìm thấy sản phẩm với ID {id}");
 
+            // Kiểm tra nếu sản phẩm đã có đơn hàng -> không cho xóa
             if (product.OrderItems != null && product.OrderItems.Any())
             {
-                product.IsActive = false;
-                _logger.LogInformation("Product soft deleted (has orders): {ProductId}", id);
-            }
-            else
-            {
-                if (product.CartItems != null && product.CartItems.Any())
-                {
-                    _context.CartItems.RemoveRange(product.CartItems);
-                }
-                _context.Products.Remove(product);
-                _logger.LogInformation("Product hard deleted: {ProductId}", id);
+                throw new InvalidOperationException("Sản phẩm đang kinh doanh, không thể xóa được.");
             }
 
+            // Xóa các CartItems liên quan trước (nếu có)
+            if (product.CartItems != null && product.CartItems.Any())
+            {
+                _context.CartItems.RemoveRange(product.CartItems);
+            }
+
+            // Xóa cứng sản phẩm
+            _context.Products.Remove(product);
             await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Đã xóa cứng sản phẩm: {ProductId}", id);
             return true;
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi xóa sản phẩm: {ProductId}", id);
             throw;
         }
     }
@@ -524,13 +529,14 @@ public class ProductService : IProductService
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Product {productId} status updated to {isActive}");
+            var trangThai = isActive ? "kích hoạt" : "ngừng kinh doanh";
+            _logger.LogInformation($"Đã {trangThai} sản phẩm {productId}");
 
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, $"Error updating product status: {productId}");
+            _logger.LogError(ex, $"Lỗi khi cập nhật trạng thái sản phẩm: {productId}");
             throw;
         }
     }
@@ -541,17 +547,17 @@ public class ProductService : IProductService
         {
             var product = await _context.Products.FindAsync(id);
             if (product == null)
-                throw new Exception($"Product with ID {id} not found");
+                throw new Exception($"Không tìm thấy sản phẩm với ID {id}");
 
             product.IsActive = true;
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Product restored: {ProductId}", id);
+            _logger.LogInformation("Đã khôi phục sản phẩm: {ProductId}", id);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error restoring product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi khôi phục sản phẩm: {ProductId}", id);
             throw;
         }
     }
@@ -562,20 +568,20 @@ public class ProductService : IProductService
         {
             var product = await _context.Products.FindAsync(id);
             if (product == null)
-                throw new Exception($"Product with ID {id} not found");
+                throw new Exception($"Không tìm thấy sản phẩm với ID {id}");
 
             if (quantity < 0)
-                throw new Exception("Quantity cannot be negative");
+                throw new Exception("Số lượng không thể là số âm");
 
             product.StockQuantity = quantity;
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Product stock updated: {ProductId} - New stock: {Quantity}", id, quantity);
+            _logger.LogInformation("Đã cập nhật tồn kho sản phẩm: {ProductId} - Tồn mới: {Quantity}", id, quantity);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating stock for product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi cập nhật tồn kho sản phẩm: {ProductId}", id);
             throw;
         }
     }
@@ -589,7 +595,7 @@ public class ProductService : IProductService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking stock for product: {ProductId}", id);
+            _logger.LogError(ex, "Lỗi khi kiểm tra tồn kho sản phẩm: {ProductId}", id);
             throw;
         }
     }
@@ -657,7 +663,7 @@ public class ProductService : IProductService
         }
         catch (Exception)
         {
-            // ignore thumbnail creation failures
+            // Bỏ qua lỗi khi tạo thumbnail
         }
     }
 
@@ -680,7 +686,7 @@ public class ProductService : IProductService
         }
         catch (Exception)
         {
-            // ignore optimization failures
+            // Bỏ qua lỗi khi tối ưu ảnh
         }
     }
 
@@ -690,10 +696,10 @@ public class ProductService : IProductService
             return string.Empty;
 
         if (!IsImageFile(file.FileName))
-            throw new Exception("Invalid file format. Only images are allowed");
+            throw new Exception("Định dạng file không hợp lệ. Chỉ chấp nhận file ảnh");
 
         if (!IsValidImageSize(file.Length, _configuration.GetValue<int>("FileSettings:MaxFileSizeMB", 5)))
-            throw new Exception("File size exceeds limit");
+            throw new Exception("Kích thước file vượt quá giới hạn cho phép");
 
         var fileName = GenerateUniqueFileName(file.FileName);
         var uploadFolder = Path.Combine("images", folder);

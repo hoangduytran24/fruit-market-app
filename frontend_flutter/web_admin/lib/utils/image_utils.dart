@@ -5,11 +5,11 @@ class ImageUtils {
   // Base URL cho các môi trường khác nhau
   static String _getBaseUrl() {
     if (kIsWeb) {
-      // Chạy trên Web (Chrome, Edge, etc.) - Chú ý port 7262 của bạn
-      return 'https://localhost:7262';
+      // Chạy trên Web (Chrome, Edge, etc.) 
+      return 'http://localhost:5280';
     } else {
       // Chạy trên Android emulator
-      return 'https://10.0.2.2:7262';
+      return 'http://10.0.2.2:5280';
     }
   }
   

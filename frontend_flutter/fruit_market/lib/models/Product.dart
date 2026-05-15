@@ -13,11 +13,7 @@
   final String? categoryName;
   final String? supplierName;
   final String? supplierAddress;
-  
-  // THÊM TRƯỜNG NÀY - Xuất xứ
   final String? origin;
-  
-  // THÊM 4 TRƯỜNG NÀY
   final DateTime? manufactureDate;
   final DateTime? expiryDate;
   final int daysToExpiry;
@@ -38,7 +34,7 @@
     this.categoryName,
     this.supplierName,              
     this.supplierAddress,
-    this.origin,  // THÊM NÀY
+    this.origin,
     this.manufactureDate,
     this.expiryDate,
     this.daysToExpiry = 0,
@@ -63,7 +59,7 @@
       categoryName: json['categoryName'],
       supplierName: json['supplierName'],      
       supplierAddress: json['supplierAddress'],
-      origin: json['origin'],  // THÊM NÀY
+      origin: json['origin'],  
       manufactureDate: json['manufactureDate'] != null 
           ? DateTime.parse(json['manufactureDate']) 
           : null,
@@ -91,7 +87,7 @@
       'categoryName': categoryName,
       'supplierName': supplierName,
       'supplierAddress': supplierAddress,
-      'origin': origin,  // THÊM NÀY
+      'origin': origin,  
       'manufactureDate': manufactureDate?.toIso8601String().split('T').first,
       'expiryDate': expiryDate?.toIso8601String().split('T').first,
       'daysToExpiry': daysToExpiry,

@@ -21,7 +21,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> with AutomaticKeepAlive
   bool _hasCalledEnsure = false;
 
   // Tối ưu: Di chuyển hằng số URL ra ngoài hoặc dùng biến môi trường nếu cần
-  static const String _baseUrl = 'https://10.0.2.2:7262';
+  static const String _baseUrl = 'http://10.0.2.2:5280';
 
   String _getFullImageUrl(String imagePath) {
     if (imagePath.isEmpty) return '';

@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://10.0.2.2:7262/api/';
+  static const String baseUrl = 'http://10.0.2.2:5280/api/';
   
   static Map<String, String> get headers => {
     'Content-Type': 'application/json',
@@ -155,4 +155,19 @@ class ApiService {
     }
     throw Exception('Lỗi: ${response.statusCode}');
   }
+
+static Future<Map<String, dynamic>> checkAccountStatus() async {
+  try {
+    final response = await get('Auth/check-status');
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else if (response.statusCode == 403) {
+      final error = json.decode(response.body);
+      throw Exception(error['code'] == 'ACCOUNT_LOCKED' ? 'ACCOUNT_LOCKED' : 'Unknown error');
+    }
+    throw Exception('Failed to check status');
+  } catch (e) {
+    rethrow;
+  }
+}
 }

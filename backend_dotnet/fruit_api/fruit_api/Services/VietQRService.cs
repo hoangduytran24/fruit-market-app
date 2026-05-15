@@ -20,7 +20,7 @@ public class VietQRService
         var template = _config["VietQR:Template"] ?? "compact2";
 
         // Nội dung chuyển tiền là mã đơn hàng
-        var orderInfo = $"DH{orderId}";
+        var orderInfo = orderId;
 
         // Tạo URL QR code từ vietqr.io
         var qrUrl = $"https://img.vietqr.io/image/{bankCode}-{accountNo}-{template}.png?" +

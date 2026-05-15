@@ -6,7 +6,7 @@ import '../models/chat_message.dart';
 
 class ChatService {
   // Thay IP này bằng IP máy tính của bạn nếu chạy máy ảo Android
-  static const String baseUrl = 'https://10.0.2.2:7262';
+  static const String baseUrl = 'http://10.0.2.2:5280';
 
   http.Client _createClient() {
     final HttpClient client = HttpClient()

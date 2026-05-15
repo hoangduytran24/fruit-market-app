@@ -17,7 +17,7 @@ class SignalRService {
     if (_hubConnection?.state == HubConnectionState.Connected) return;
 
     // URL Hub của bạn
-    const String hubUrl = "https://10.0.2.2:7262/orderHub";
+    const String hubUrl = "http://10.0.2.2:5280/orderHub";
 
     _hubConnection = HubConnectionBuilder()
         .withUrl(hubUrl, options: HttpConnectionOptions(

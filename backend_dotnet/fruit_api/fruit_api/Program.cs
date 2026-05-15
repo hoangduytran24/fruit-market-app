@@ -172,11 +172,12 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // Thứ tự chuẩn: Auth luôn nằm sau CORS và Routing
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<AccountStatusMiddleware>();
 
 app.MapControllers();
 app.MapHub<OrderHub>("/orderHub");

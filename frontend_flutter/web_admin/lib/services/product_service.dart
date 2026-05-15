@@ -218,15 +218,23 @@ class ProductService {
     }
   }
   
-  Future<bool> deleteProduct(String productId) async {
-    try {
-      final response = await ApiService.delete('Products/$productId');
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Error in deleteProduct: $e');
-      return false;
+Future<bool> deleteProduct(String productId) async {
+  try {
+    final response = await ApiService.delete('Products/$productId');
+    
+    if (response.statusCode == 200) {
+      return true;
+    } else if (response.statusCode == 400) {
+      final data = json.decode(response.body);
+      throw data['message'] ?? 'Không thể xóa sản phẩm';
+    } else {
+      throw 'Có lỗi xảy ra khi xóa sản phẩm';
     }
+  } catch (e) {
+    print('Error in deleteProduct: $e');
+    rethrow;
   }
+}
   
   // ========== THÊM METHOD CẬP NHẬT TRẠNG THÁI ==========
   Future<bool> updateProductStatus(String productId, bool isActive) async {

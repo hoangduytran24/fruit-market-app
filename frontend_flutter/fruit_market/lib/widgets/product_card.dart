@@ -22,9 +22,9 @@ class ProductCard extends StatelessWidget {
     if (imagePath.startsWith('http')) return imagePath;
     imagePath = imagePath.replaceAll('_scaled_36', '');
     if (imagePath.startsWith('/')) {
-      return 'https://10.0.2.2:7262$imagePath';
+      return 'http://10.0.2.2:5280$imagePath';
     }
-    return 'https://10.0.2.2:7262/$imagePath';
+    return 'http://10.0.2.2:5280/$imagePath';
   }
 
   String _formatCurrency(double amount) {

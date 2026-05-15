@@ -543,10 +543,18 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget buildCheckoutBar(CartProvider cartProvider, Cart cart) {
-    // ✅ Kiểm tra xem có item nào vượt quá stock không
+    // ✅ Kiểm tra sản phẩm ngừng kinh doanh
+    final hasInactiveItem = cart.items.any((item) => !item.isActive);
     final hasOverStockItem = cart.items.any((item) => item.quantity > item.stockQuantity);
-    final isValidCheckout = cartProvider.totalSelectedAmount > 0 && !hasOverStockItem;
-    String? checkoutError = hasOverStockItem ? 'Có sản phẩm vượt quá số lượng tồn kho' : null;
+    
+    String? checkoutError;
+    if (hasInactiveItem) {
+      checkoutError = 'Có sản phẩm đã ngừng kinh doanh, vui lòng xóa khỏi giỏ hàng';
+    } else if (hasOverStockItem) {
+      checkoutError = 'Có sản phẩm vượt quá số lượng tồn kho';
+    }
+    
+    final isValidCheckout = cartProvider.totalSelectedAmount > 0 && checkoutError == null;
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -688,6 +696,24 @@ class _CartScreenState extends State<CartScreen> {
       return;
     }
 
+    // ✅ Kiểm tra sản phẩm ngừng kinh doanh trước khi thanh toán
+    final cart = cartProvider.cart;
+    if (cart != null) {
+      final inactiveItems = cart.items.where((item) => !item.isActive).toList();
+      if (inactiveItems.isNotEmpty) {
+        final productNames = inactiveItems.map((item) => item.productName).join(', ');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sản phẩm "$productNames" đã ngừng kinh doanh, không thể thanh toán'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    }
+
     final selectedCartItems = cartProvider.cart!.items
         .where((item) => cartProvider.selectedItems.contains(item.cartItemId))
         .toList();
@@ -755,9 +781,9 @@ class _CartItemCardState extends State<CartItemCard> {
     if (imageUrl == null || imageUrl.isEmpty) return null;
     if (imageUrl.startsWith('http')) return imageUrl;
     if (imageUrl.startsWith('/')) {
-      return 'https://10.0.2.2:7262$imageUrl';
+      return 'http://10.0.2.2:5280$imageUrl';
     }
-    return 'https://10.0.2.2:7262/$imageUrl';
+    return 'http://10.0.2.2:5280/$imageUrl';
   }
 
   void _showMaxQuantityWarning() {
@@ -782,8 +808,26 @@ class _CartItemCardState extends State<CartItemCard> {
     );
   }
 
+  void _showInactiveWarning() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Sản phẩm đã ngừng kinh doanh, không thể cập nhật số lượng'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> _updateQuantity(int newQuantity) async {
     if (_isUpdating) return;
+    
+    // ✅ Không cho phép cập nhật nếu sản phẩm ngừng kinh doanh
+    if (!widget.item.isActive) {
+      _showInactiveWarning();
+      _quantityController.text = widget.item.quantity.toString();
+      return;
+    }
     
     // Kiểm tra số lượng vượt quá tồn kho
     if (newQuantity > widget.item.stockQuantity) {
@@ -984,6 +1028,7 @@ class _CartItemCardState extends State<CartItemCard> {
     final cartProvider = Provider.of<CartProvider>(context);
     final imageUrl = _getFullImageUrl(widget.item.imageUrl);
     final isOverStock = widget.item.quantity > widget.item.stockQuantity;
+    final isInactive = !widget.item.isActive; // ✅ Kiểm tra ngừng kinh doanh
     
     return Container(
       decoration: BoxDecoration(
@@ -1003,12 +1048,12 @@ class _CartItemCardState extends State<CartItemCard> {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Checkbox
+                // Checkbox (vô hiệu hóa nếu sản phẩm ngừng kinh doanh)
                 Transform.scale(
                   scale: 1.2,
                   child: Checkbox(
-                    value: cartProvider.isSelected(widget.item.cartItemId),
-                    onChanged: (value) {
+                    value: isInactive ? false : cartProvider.isSelected(widget.item.cartItemId),
+                    onChanged: isInactive ? null : (value) {
                       cartProvider.toggleSelect(widget.item.cartItemId);
                       widget.onQuantityChanged?.call();
                     },
@@ -1016,7 +1061,7 @@ class _CartItemCardState extends State<CartItemCard> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                 ),
-                // Ảnh sản phẩm
+                // Ảnh sản phẩm (thêm opacity nếu ngừng kinh doanh)
                 Container(
                   width: 70,
                   height: 70,
@@ -1028,6 +1073,9 @@ class _CartItemCardState extends State<CartItemCard> {
                         ? DecorationImage(
                             image: NetworkImage(imageUrl),
                             fit: BoxFit.cover,
+                            colorFilter: isInactive 
+                                ? const ColorFilter.mode(Colors.black38, BlendMode.darken)
+                                : null,
                           )
                         : null,
                   ),
@@ -1049,15 +1097,22 @@ class _CartItemCardState extends State<CartItemCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.item.productName,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.item.productName,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: isInactive ? Colors.grey.shade500 : Colors.black87,
+                                decoration: isInactive ? TextDecoration.lineThrough : null,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -1065,10 +1120,11 @@ class _CartItemCardState extends State<CartItemCard> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: Colors.green.shade600,
+                          color: isInactive ? Colors.grey.shade400 : Colors.green.shade600,
                         ),
                       ),
                       const SizedBox(height: 8),
+                      // ✅ Vô hiệu hóa nút tăng/giảm số lượng nếu ngừng kinh doanh
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.grey.shade50,
@@ -1079,19 +1135,19 @@ class _CartItemCardState extends State<CartItemCard> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             InkWell(
-                              onTap: () => _updateQuantity(widget.item.quantity - 1),
+                              onTap: isInactive ? null : () => _updateQuantity(widget.item.quantity - 1),
                               borderRadius: BorderRadius.circular(8),
                               child: Container(
                                 width: 28,
                                 height: 28,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
+                                  color: isInactive ? Colors.grey.shade200 : Colors.grey.shade100,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
                                   Icons.remove,
                                   size: 16,
-                                  color: Colors.grey.shade600,
+                                  color: isInactive ? Colors.grey.shade400 : Colors.grey.shade600,
                                 ),
                               ),
                             ),
@@ -1102,10 +1158,10 @@ class _CartItemCardState extends State<CartItemCard> {
                               child: TextField(
                                 controller: _quantityController,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.black87,
+                                  color: isInactive ? Colors.grey.shade400 : Colors.black87,
                                 ),
                                 decoration: const InputDecoration(
                                   border: InputBorder.none,
@@ -1117,16 +1173,19 @@ class _CartItemCardState extends State<CartItemCard> {
                                   FilteringTextInputFormatter.digitsOnly,
                                 ],
                                 onSubmitted: _handleQuantitySubmit,
+                                enabled: !isInactive,
                                 onTap: () {
-                                  _quantityController.selection = TextSelection(
-                                    baseOffset: 0,
-                                    extentOffset: _quantityController.text.length,
-                                  );
+                                  if (!isInactive) {
+                                    _quantityController.selection = TextSelection(
+                                      baseOffset: 0,
+                                      extentOffset: _quantityController.text.length,
+                                    );
+                                  }
                                 },
                               ),
                             ),
                             InkWell(
-                              onTap: () {
+                              onTap: isInactive ? null : () {
                                 if (widget.item.quantity >= widget.item.stockQuantity) {
                                   _showMaxQuantityWarning();
                                 } else {
@@ -1138,13 +1197,13 @@ class _CartItemCardState extends State<CartItemCard> {
                                 width: 28,
                                 height: 28,
                                 decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
+                                  color: isInactive ? Colors.grey.shade200 : Colors.green.shade50,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
                                   Icons.add,
                                   size: 16,
-                                  color: Colors.green.shade600,
+                                  color: isInactive ? Colors.grey.shade400 : Colors.green.shade600,
                                 ),
                               ),
                             ),
@@ -1159,10 +1218,11 @@ class _CartItemCardState extends State<CartItemCard> {
                   children: [
                     Text(
                       _formatCurrency(widget.item.price * widget.item.quantity),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: isInactive ? Colors.grey.shade500 : Colors.black87,
+                        decoration: isInactive ? TextDecoration.lineThrough : null,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1184,8 +1244,32 @@ class _CartItemCardState extends State<CartItemCard> {
               ],
             ),
           ),
-          // ✅ Hiển thị cảnh báo nếu số lượng vượt quá tồn kho
-          if (isOverStock)
+          // ✅ Hiển thị cảnh báo ngừng kinh doanh
+          if (isInactive)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cancel_outlined, size: 16, color: Colors.red.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Sản phẩm đã ngừng kinh doanh, vui lòng xóa khỏi giỏ hàng',
+                      style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (isOverStock)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
               padding: const EdgeInsets.all(8),

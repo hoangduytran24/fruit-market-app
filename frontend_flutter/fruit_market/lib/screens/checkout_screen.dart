@@ -223,7 +223,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => VietQRPaymentScreen(
+                builder: (_) => SePayPaymentScreen(
                   orderId: order!.orderId,
                   amount: _finalAmount,
                 ),

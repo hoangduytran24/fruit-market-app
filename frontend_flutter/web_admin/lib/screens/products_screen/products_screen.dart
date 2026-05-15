@@ -17,14 +17,13 @@ class ProductsScreen extends StatefulWidget {
 class _ProductsScreenState extends State<ProductsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
-@override
-void initState() {
-  super.initState();
-
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _loadData();
-  });
-}
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
+  }
 
   @override
   void dispose() {
@@ -61,7 +60,7 @@ void initState() {
   void _openProductForm([Product? product]) {
     showDialog(
       context: context,
-      barrierColor: Colors.black54, // Làm mờ nền
+      barrierColor: Colors.black54,
       barrierDismissible: false,
       builder: (context) => Dialog(
         backgroundColor: Colors.transparent, 
@@ -105,8 +104,33 @@ void initState() {
 
     if (confirmed == true) {
       final productProvider = Provider.of<ProductProvider>(context, listen: false);
-      await productProvider.deleteProduct(product.productId);
-      _refresh();
+      
+      try {
+        await productProvider.deleteProduct(product.productId);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Xóa sản phẩm thành công'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        _refresh();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e is String ? e : e.toString()),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -114,6 +138,57 @@ void initState() {
     final productProvider = Provider.of<ProductProvider>(context, listen: false);
     if (page >= 1 && page <= productProvider.totalPages && page != productProvider.currentPage) {
       productProvider.goToPage(page);
+    }
+  }
+
+  // Hàm lấy text trạng thái sản phẩm
+  String _getProductStatusText(Product product) {
+    // Nếu sản phẩm có trường isActive hoặc status
+    // Giả sử product có trường isActive (bool) hoặc status (String)
+    if (product.isActive == false) {
+      return 'Ngừng kinh doanh';
+    }
+    // Nếu có stockQuantity
+    if (product.stockQuantity > 0) {
+      return 'Còn hàng';
+    } else {
+      return 'Hết hàng';
+    }
+  }
+
+  // Hàm lấy màu cho trạng thái
+  Color _getProductStatusColor(Product product) {
+    if (product.isActive == false) {
+      return Colors.orange;
+    }
+    if (product.stockQuantity > 0) {
+      return Colors.green;
+    } else {
+      return Colors.red;
+    }
+  }
+
+  // Hàm lấy màu nền cho trạng thái
+  Color _getProductStatusBackgroundColor(Product product) {
+    if (product.isActive == false) {
+      return Colors.orange.withOpacity(0.1);
+    }
+    if (product.stockQuantity > 0) {
+      return Colors.green.withOpacity(0.1);
+    } else {
+      return Colors.red.withOpacity(0.1);
+    }
+  }
+
+  // Hàm lấy icon cho trạng thái
+  IconData _getProductStatusIcon(Product product) {
+    if (product.isActive == false) {
+      return Icons.pause_circle_outline;
+    }
+    if (product.stockQuantity > 0) {
+      return Icons.check_circle_outline;
+    } else {
+      return Icons.remove_circle_outline;
     }
   }
 
@@ -268,38 +343,127 @@ void initState() {
 
   Widget _buildProductRow(Product product) {
     final imageUrl = ImageUtils.getOriginalImage(product.imageUrl);
+    final statusText = _getProductStatusText(product);
+    final statusColor = _getProductStatusColor(product);
+    final statusBgColor = _getProductStatusBackgroundColor(product);
+    final statusIcon = _getProductStatusIcon(product);
+    
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade50))),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade50)),
+        // Thêm màu nền nhạt nếu sản phẩm ngừng kinh doanh
+        color: product.isActive == false ? Colors.grey.shade50 : null,
+      ),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Text(product.productName, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(
+            flex: 2, 
+            child: Text(
+              product.productName, 
+              style: TextStyle(
+                fontWeight: FontWeight.w500, 
+                fontSize: 13,
+                // Thêm gạch ngang nếu ngừng kinh doanh
+                decoration: product.isActive == false ? TextDecoration.lineThrough : null,
+                color: product.isActive == false ? Colors.grey : null,
+              ), 
+              maxLines: 1, 
+              overflow: TextOverflow.ellipsis
+            ),
+          ),
           Expanded(
             flex: 1,
             child: Center(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(imageUrl, width: 35, height: 35, fit: BoxFit.cover)
-                    : Container(width: 35, height: 35, color: Colors.grey[100], child: const Icon(Icons.image, size: 20, color: Colors.grey)),
+                    ? Image.network(
+                        imageUrl, 
+                        width: 35, 
+                        height: 35, 
+                        fit: BoxFit.cover,
+                        // Thêm opacity nếu ngừng kinh doanh
+                        color: product.isActive == false ? Colors.grey.withOpacity(0.5) : null,
+                        colorBlendMode: product.isActive == false ? BlendMode.color : null,
+                      )
+                    : Container(
+                        width: 35, 
+                        height: 35, 
+                        color: Colors.grey[100], 
+                        child: Icon(
+                          Icons.image, 
+                          size: 20, 
+                          color: product.isActive == false ? Colors.grey : Colors.grey,
+                        ),
+                      ),
               ),
             ),
           ),
-          Expanded(flex: 2, child: Center(child: Text(product.categoryName ?? '-', style: const TextStyle(fontSize: 13)))),
-          Expanded(flex: 2, child: Text('${_formatCurrency(product.price)}₫', textAlign: TextAlign.right, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13))),
-          Expanded(flex: 1, child: Center(child: Text(product.stockQuantity.toString(), style: const TextStyle(fontSize: 13)))),
+          Expanded(
+            flex: 2, 
+            child: Center(
+              child: Text(
+                product.categoryName ?? '-', 
+                style: TextStyle(
+                  fontSize: 13,
+                  color: product.isActive == false ? Colors.grey : null,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2, 
+            child: Text(
+              '${_formatCurrency(product.price)}₫', 
+              textAlign: TextAlign.right, 
+              style: TextStyle(
+                color: product.isActive == false ? Colors.grey : Colors.green, 
+                fontWeight: FontWeight.bold, 
+                fontSize: 13,
+                decoration: product.isActive == false ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1, 
+            child: Center(
+              child: Text(
+                product.stockQuantity.toString(), 
+                style: TextStyle(
+                  fontSize: 13,
+                  color: product.isActive == false ? Colors.grey : null,
+                ),
+              ),
+            ),
+          ),
           Expanded(
             flex: 2,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: product.stockQuantity > 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                  color: statusBgColor,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  product.stockQuantity > 0 ? 'Còn hàng' : 'Hết hàng',
-                  style: TextStyle(color: product.stockQuantity > 0 ? Colors.green[700] : Colors.red[700], fontSize: 10, fontWeight: FontWeight.bold),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      statusIcon,
+                      size: 12,
+                      color: statusColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor, 
+                        fontSize: 10, 
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -315,6 +479,7 @@ void initState() {
                     MaterialPageRoute(builder: (_) => ProductDetailScreen(product: product)),
                   ).then((_) => _refresh());
                 }),
+                // Nếu sản phẩm ngừng kinh doanh, vẫn cho phép sửa (có thể kích hoạt lại)
                 _buildActionIcon(Icons.edit_outlined, Colors.orange, 'Sửa', () {
                   _openProductForm(product); 
                 }),

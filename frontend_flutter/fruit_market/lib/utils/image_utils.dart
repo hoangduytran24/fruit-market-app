@@ -1,12 +1,12 @@
 class ImageUtils {
   // Base URL cho Android emulator
-  static const String _baseUrl = 'https://10.0.2.2:7262';
+  static const String _baseUrl = 'http://10.0.2.2:5280';
   
   // Base URL cho iOS simulator (nếu cần)
-  // static const String _baseUrl = 'https://localhost:7262';
+  // static const String _baseUrl = 'http://localhost:5280';
   
   // Base URL cho thiết bị thật (dùng IP máy tính)
-  // static const String _baseUrl = 'https://192.168.1.x:7262';
+  // static const String _baseUrl = 'http://192.168.1.x:5280';
 
   /// Lấy URL đầy đủ của ảnh gốc (bỏ _scaled_36)
   static String? getOriginalImage(String? imageUrl) {
@@ -135,9 +135,9 @@ class ImageUtils {
     if (customBaseUrl != null) {
       baseUrl = customBaseUrl;
     } else if (isAndroid) {
-      baseUrl = 'https://10.0.2.2:7262';
+      baseUrl = 'http://10.0.2.2:5289';
     } else if (isIOS) {
-      baseUrl = 'https://localhost:7262';
+      baseUrl = 'http://localhost:5280';
     } else {
       baseUrl = _baseUrl;
     }

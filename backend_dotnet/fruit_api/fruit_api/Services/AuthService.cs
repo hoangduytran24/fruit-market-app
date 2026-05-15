@@ -14,11 +14,16 @@ public class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration)
+    public AuthService(
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        ILogger<AuthService> logger)
     {
         _context = context;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
@@ -126,6 +131,136 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task<AuthResponseDto> GetUserByIdAsync(string userId)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user == null)
+        {
+            throw new Exception("User not found");
+        }
+
+        return new AuthResponseDto
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            Email = user.Email,
+            Phone = user.Phone,
+            Role = user.Role,
+            Token = null  // Không cần trả token mới
+        };
+    }
+
+    // ===============================
+    // CHECK ACCOUNT STATUS
+    // ===============================
+    public async Task<AccountStatusDto> CheckAccountStatusAsync(string userId)
+    {
+        var user = await _context.Users
+            .Where(u => u.UserId == userId)
+            .Select(u => new AccountStatusDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                Phone = u.Phone,
+                Role = u.Role,
+                Status = u.Status,
+                IsActive = u.Status == "active"
+            })
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+        {
+            throw new Exception("Không tìm thấy người dùng");
+        }
+
+        return user;
+    }
+
+    // ===============================
+    // LOCK USER ACCOUNT (for Admin)
+    // ===============================
+    public async Task<bool> LockUserAccountAsync(string userId, string? reason = null)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            throw new Exception("Không tìm thấy người dùng");
+        }
+
+        if (user.Status == "active")
+        {
+            user.Status = "locked"; // hoặc "inactive", "banned"
+
+            // Nếu muốn lưu thêm thông tin (cần thêm các field này vào model User)
+            // user.LockedAt = DateTime.UtcNow;
+            // user.LockReason = reason;
+            // user.LockedBy = adminUserId;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Tài khoản {userId} ({user.FullName}) đã bị khóa. Lý do: {reason ?? "Không có lý do"}");
+            return true;
+        }
+
+        _logger.LogWarning($"Tài khoản {userId} hiện đang có status '{user.Status}', không thể khóa");
+        return false;
+    }
+
+    // ===============================
+    // UNLOCK USER ACCOUNT (for Admin)
+    // ===============================
+    public async Task<bool> UnlockUserAccountAsync(string userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            throw new Exception("Không tìm thấy người dùng");
+        }
+
+        if (user.Status != "active")
+        {
+            user.Status = "active";
+
+            // Nếu muốn xóa thông tin khóa
+            // user.LockedAt = null;
+            // user.LockReason = null;
+            // user.LockedBy = null;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Tài khoản {userId} ({user.FullName}) đã được mở khóa");
+            return true;
+        }
+
+        _logger.LogWarning($"Tài khoản {userId} hiện đang ở trạng thái active, không cần mở khóa");
+        return false;
+    }
+
+    // ===============================
+    // GET ALL LOCKED USERS (for Admin)
+    // ===============================
+    public async Task<List<AccountStatusDto>> GetLockedUsersAsync()
+    {
+        var lockedUsers = await _context.Users
+            .Where(u => u.Status != "active")
+            .Select(u => new AccountStatusDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                Phone = u.Phone,
+                Role = u.Role,
+                Status = u.Status,
+                IsActive = false
+            })
+            .ToListAsync();
+
+        return lockedUsers;
+    }
+
     // ===============================
     // Generate JWT Token
     // ===============================
@@ -180,26 +315,5 @@ public class AuthService : IAuthService
         }
 
         return "US" + nextNumber.ToString("D4");
-    }
-
-    public async Task<AuthResponseDto> GetUserByIdAsync(string userId)
-    {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.UserId == userId);
-
-        if (user == null)
-        {
-            throw new Exception("User not found");
-        }
-
-        return new AuthResponseDto
-        {
-            UserId = user.UserId,
-            FullName = user.FullName,
-            Email = user.Email,
-            Phone = user.Phone,
-            Role = user.Role,
-            Token = null  // Không cần trả token mới
-        };
     }
 }

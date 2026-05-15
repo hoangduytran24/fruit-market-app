@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/account_status_service.dart';
 import '../models/User.dart';
+import '../services/api_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _currentUser;
   bool _isLoading = false;
   String? _error;
-  bool _hasLoaded = false; // THÊM
-  bool _isChecking = false; // THÊM
+  bool _hasLoaded = false;
+  bool _isChecking = false;
+  BuildContext? _context; // THÊM: context để hiển thị dialog
 
   // Getters
   User? get currentUser => _currentUser;
@@ -15,12 +18,30 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isAuthenticated => _currentUser != null;
   String? get token => _currentUser?.token;
-  bool get hasLoaded => _hasLoaded; // THÊM
-  bool get isChecking => _isChecking; // THÊM
+  bool get hasLoaded => _hasLoaded;
+  bool get isChecking => _isChecking;
 
   // Constructor - kiểm tra trạng thái đăng nhập khi khởi tạo
-  AuthProvider() {
-    checkLoginStatus();
+  AuthProvider();
+
+  // THÊM: Set context
+  void setContext(BuildContext context) {
+    _context = context;
+  }
+
+  // THÊM: Bắt đầu kiểm tra trạng thái tài khoản định kỳ
+  void startAccountStatusCheck() {
+    if (isAuthenticated && _context != null) {
+      AccountStatusService.init(_context!);
+      AccountStatusService.startPeriodicCheck();
+      print('✅ Đã bắt đầu kiểm tra trạng thái tài khoản');
+    }
+  }
+
+  // THÊM: Dừng kiểm tra trạng thái tài khoản
+  void stopAccountStatusCheck() {
+    AccountStatusService.stopPeriodicCheck();
+    print('✅ Đã dừng kiểm tra trạng thái tài khoản');
   }
 
   // Kiểm tra trạng thái đăng nhập từ token đã lưu
@@ -41,10 +62,14 @@ class AuthProvider extends ChangeNotifier {
         final userData = await AuthService.getCurrentUser();
         if (userData != null) {
           _currentUser = User.fromJson(userData);
+          // THÊM: Nếu đã đăng nhập, bắt đầu kiểm tra định kỳ
+          if (_context != null) {
+            startAccountStatusCheck();
+          }
         }
       }
       
-      _hasLoaded = true; // THÊM
+      _hasLoaded = true;
     } catch (e) {
       print('❌ Error checking login status: $e');
     } finally {
@@ -63,8 +88,14 @@ class AuthProvider extends ChangeNotifier {
       
       if (result['success']) {
         _currentUser = User.fromJson(result['data']);
-        _hasLoaded = true; // THÊM
+        _hasLoaded = true;
         _setLoading(false);
+        
+        // THÊM: Bắt đầu kiểm tra định kỳ sau khi login thành công
+        if (_context != null) {
+          startAccountStatusCheck();
+        }
+        
         return true;
       } else {
         _error = result['message'];
@@ -100,8 +131,14 @@ class AuthProvider extends ChangeNotifier {
         if (result['data'] != null && result['data']['token'] != null) {
           _currentUser = User.fromJson(result['data']);
         }
-        _hasLoaded = true; // THÊM
+        _hasLoaded = true;
         _setLoading(false);
+        
+        // THÊM: Bắt đầu kiểm tra định kỳ sau khi đăng ký thành công
+        if (_context != null) {
+          startAccountStatusCheck();
+        }
+        
         return true;
       } else {
         _error = result['message'];
@@ -117,10 +154,71 @@ class AuthProvider extends ChangeNotifier {
 
   // Đăng xuất
   Future<void> logout() async {
+    // THÊM: Dừng kiểm tra định kỳ trước khi logout
+    stopAccountStatusCheck();
+    
     await AuthService.logout();
     _currentUser = null;
-    _hasLoaded = false; // THÊM: reset khi logout
+    _hasLoaded = false;
     notifyListeners();
+    
+    print('✅ Đã đăng xuất và dừng kiểm tra tài khoản');
+  }
+
+  // THÊM: Kiểm tra trạng thái tài khoản ngay lập tức
+  Future<bool> checkAccountStatusNow() async {
+    if (!isAuthenticated) return false;
+    
+    try {
+      final response = await ApiService.get('Auth/check-status');
+      
+      if (response.statusCode == 200) {
+        return true;
+      } else if (response.statusCode == 403) {
+        final data = ApiService.handleResponse(response);
+        if (data['code'] == 'ACCOUNT_LOCKED') {
+          // Tài khoản bị khóa, logout ngay
+          await logout();
+          if (_context != null) {
+            _showAccountLockedDialog(data['message'] ?? 'Tài khoản của bạn đã bị khóa');
+          }
+          return false;
+        }
+      }
+      return true;
+    } catch (e) {
+      print('Error checking account status: $e');
+      return true;
+    }
+  }
+
+  // THÊM: Hiển thị dialog khi tài khoản bị khóa
+  void _showAccountLockedDialog(String message) {
+    if (_context == null || !_context!.mounted) return;
+    
+    showDialog(
+      context: _context!,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 12),
+            Text('Tài khoản bị khóa'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              Navigator.of(_context!).pushNamedAndRemoveUntil('/login', (route) => false);
+            },
+            child: const Text('Đăng nhập lại'),
+          ),
+        ],
+      ),
+    );
   }
 
   // Đảm bảo auth đã được load
@@ -143,6 +241,7 @@ class AuthProvider extends ChangeNotifier {
 
   // Reset state
   void reset() {
+    stopAccountStatusCheck(); // THÊM: Dừng kiểm tra khi reset
     _currentUser = null;
     _isLoading = false;
     _error = null;

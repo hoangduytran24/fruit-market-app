@@ -55,6 +55,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // 👈 THÊM: Set context cho AuthProvider
+    authProvider.setContext(context);
+    
     final success = await authProvider.login(
       _emailController.text.trim(),
       _passwordController.text,
@@ -63,6 +67,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (!mounted) return;
 
     if (success) {
+      // 👈 THÊM: Bắt đầu kiểm tra trạng thái tài khoản định kỳ
+      authProvider.startAccountStatusCheck();
+      
       _showCustomSnackBar('Đăng nhập thành công!', primaryGreen);
       Navigator.pushReplacement(
         context,

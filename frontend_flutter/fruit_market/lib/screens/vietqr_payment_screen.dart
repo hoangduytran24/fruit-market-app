@@ -2,27 +2,36 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/payment_provider.dart';
-import '../utils/currency_utils.dart';
+import '../providers/order_provider.dart';
+import '../services/payment_service.dart'; // Thêm import này
+import 'order_detail_screen.dart';
 
-class VietQRPaymentScreen extends StatefulWidget {
+class SePayPaymentScreen extends StatefulWidget {
   final String orderId;
   final double amount;
+  final String? existingPaymentId;
 
-  const VietQRPaymentScreen({
+  const SePayPaymentScreen({
     Key? key,
     required this.orderId,
     required this.amount,
+    this.existingPaymentId, // THÊM
   }) : super(key: key);
 
   @override
-  State<VietQRPaymentScreen> createState() => _VietQRPaymentScreenState();
+  State<SePayPaymentScreen> createState() => _SePayPaymentScreenState();
 }
 
-class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
+class _SePayPaymentScreenState extends State<SePayPaymentScreen> {
   Timer? _timer;
   int _checkCount = 0;
   bool _isCountingDown = false;
-  int _countdown = 60;
+  int _countdown = 120;
+  
+  // Cấu hình thời gian
+  static const int _pollingIntervalSeconds = 3;
+  static const int _maxPollingAttempts = 40;
+  static const int _countdownSeconds = 120;
 
   // Modern color scheme
   static const Color _primaryColor = Color(0xFF1A73E8);
@@ -38,7 +47,9 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
   @override
   void initState() {
     super.initState();
-    _createPayment();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _createOrLoadPayment(); // Đổi tên hàm
+    });
   }
 
   @override
@@ -47,48 +58,306 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
     super.dispose();
   }
 
-  Future<void> _createPayment() async {
+  // THÊM: Hàm mới để tạo mới hoặc load payment cũ
+  Future<void> _createOrLoadPayment() async {
     final paymentProvider = Provider.of<PaymentProvider>(context, listen: false);
     
-    final success = await paymentProvider.createVietQRPayment(widget.orderId);
+    // Nếu đã có paymentId, lấy thông tin từ API
+    if (widget.existingPaymentId != null && widget.existingPaymentId!.isNotEmpty) {
+      await _loadExistingPayment(widget.existingPaymentId!);
+    } else {
+      // Tạo payment mới
+      final success = await paymentProvider.createSePayPayment(widget.orderId);
+      if (success && mounted) {
+        _startPolling();
+      }
+    }
+  }
+
+  // THÊM: Load payment đã tồn tại
+  Future<void> _loadExistingPayment(String paymentId) async {
+    final paymentProvider = Provider.of<PaymentProvider>(context, listen: false);
     
-    if (success) {
-      _startPolling();
+    try {
+      // Hiển thị loading
+      if (mounted) {
+        setState(() {});
+      }
+      
+      final result = await PaymentService.getPaymentInfo(paymentId);
+      
+      print('Load existing payment result: $result');
+      
+      if (result['success'] == true && mounted) {
+        final data = result['data'];
+        
+        // Cập nhật provider với thông tin đã có
+        final qrCodeUrl = data['qrCodeUrl'];
+        final paymentStatus = data['paymentStatus'];
+        
+        // Sử dụng reflection hoặc thêm method vào PaymentProvider
+        paymentProvider.setQrCodeUrl(qrCodeUrl);
+        paymentProvider.setPaymentId(data['paymentId']);
+        
+        if (paymentStatus == 'paid') {
+          paymentProvider.setStatus('paid');
+          // Thanh toán thành công, tự động đóng
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: const [
+                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  SizedBox(width: 12),
+                  Text('Đơn hàng đã được thanh toán trước đó!'),
+                ],
+              ),
+              backgroundColor: _successColor,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) Navigator.pop(context, true);
+          });
+        } else {
+          paymentProvider.setStatus('pending');
+          _startPolling(); // Bắt đầu polling để kiểm tra
+        }
+      } else {
+        // Nếu không lấy được, tạo mới
+        print('Không lấy được payment cũ, tạo mới');
+        final success = await paymentProvider.createSePayPayment(widget.orderId);
+        if (success && mounted) {
+          _startPolling();
+        }
+      }
+    } catch (e) {
+      print('Lỗi load payment: $e');
+      // Fallback: tạo mới
+      final success = await paymentProvider.createSePayPayment(widget.orderId);
+      if (success && mounted) {
+        _startPolling();
+      }
     }
   }
 
   void _startPolling() {
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-      _checkCount++;
-      
-      if (_checkCount > 12) {
-        timer.cancel();
-        if (mounted) {
-          setState(() => _isCountingDown = true);
-          _startCountdown();
+    _timer = Timer.periodic(
+      const Duration(seconds: _pollingIntervalSeconds), 
+      (timer) async {
+        _checkCount++;
+        
+        if (_checkCount > _maxPollingAttempts) {
+          timer.cancel();
+          if (mounted) {
+            setState(() => _isCountingDown = true);
+            _startCountdown();
+          }
+          return;
         }
-        return;
-      }
 
-      await _checkPaymentStatus();
-    });
+        await _checkPaymentStatus();
+      }
+    );
   }
 
   void _startCountdown() {
+    if (mounted && _countdown == _countdownSeconds) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.timer_outlined, color: Colors.white, size: 20),
+              SizedBox(width: 12),
+              Text('Hết thời gian chờ thanh toán!\n Tự động thoát sau 2 phút'),
+            ],
+          ),
+          backgroundColor: _warningColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+    
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted && _countdown > 0) {
         setState(() => _countdown--);
         _startCountdown();
-      } else if (_countdown == 0) {
-        Navigator.pop(context);
+      } else if (_countdown == 0 && mounted) {
+        _showPaymentTimeoutDialog();
       }
     });
+  }
+
+  Future<void> _showPaymentTimeoutDialog() async {
+    _timer?.cancel();
+    final orderId = widget.orderId;
+    
+    final shouldRetry = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => WillPopScope(
+        onWillPop: () async => false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: _errorColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  color: _errorColor,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Chưa thanh toán',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _errorColor,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Bạn chưa thanh toán đơn hàng ${widget.orderId}',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Vui lòng thanh toán để xác nhận đơn hàng.\nNếu không thanh toán, đơn hàng sẽ bị hủy sau 24 giờ.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.grey[600],
+              ),
+              child: const Text('Để sau'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text(
+                'Thanh toán ngay',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    if (mounted) {
+      if (shouldRetry == true) {
+        Navigator.pop(context);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SePayPaymentScreen(
+              orderId: orderId,
+              amount: widget.amount,
+              existingPaymentId: widget.existingPaymentId, // Giữ lại paymentId
+            ),
+          ),
+        );
+      } else {
+        Navigator.pop(context);
+        _navigateToOrderDetail(orderId);
+      }
+    }
+  }
+
+  Future<void> _navigateToOrderDetail(String orderId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    
+    try {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      final order = await orderProvider.fetchOrderDetail(orderId);
+      
+      if (mounted) Navigator.pop(context);
+      
+      if (mounted && order != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderDetailScreen(order: order),
+          ),
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể tải thông tin đơn hàng'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    }
   }
 
   Future<void> _checkPaymentStatus() async {
     final paymentProvider = Provider.of<PaymentProvider>(context, listen: false);
     
-    final success = await paymentProvider.checkPaymentStatus(widget.orderId);
+    final success = await paymentProvider.checkSePayPaymentStatus(widget.orderId);
     
     if (success && mounted) {
       _timer?.cancel();
@@ -118,6 +387,17 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
     }
   }
 
+  String _getRemainingPollingTime() {
+    int remainingAttempts = _maxPollingAttempts - _checkCount;
+    int remainingSeconds = remainingAttempts * _pollingIntervalSeconds;
+    int minutes = remainingSeconds ~/ 60;
+    int seconds = remainingSeconds % 60;
+    if (minutes > 0) {
+      return '$minutes phút $seconds giây';
+    }
+    return '$seconds giây';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<PaymentProvider>(
@@ -126,7 +406,7 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
           backgroundColor: _surfaceColor,
           appBar: AppBar(
             title: const Text(
-              'Thanh toán',
+              'Thanh toán qua SePay',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
@@ -138,7 +418,7 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, color: _textPrimary, size: 20),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => _showConfirmExitDialog(),
             ),
           ),
           body: provider.isLoading && provider.qrCodeUrl == null
@@ -148,6 +428,36 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                   : _buildQRWidget(provider),
         );
       },
+    );
+  }
+
+  void _showConfirmExitDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận thoát'),
+        content: const Text('Bạn chưa thanh toán đơn hàng. Thoát sẽ làm mất cơ hội thanh toán này. Bạn có muốn tiếp tục?'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Ở lại'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _errorColor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Thoát'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -185,13 +495,12 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
   }
 
   Widget _buildQRWidget(PaymentProvider provider) {
+    
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Status header
           _buildStatusHeader(provider.status),
           
-          // Main QR container
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             padding: const EdgeInsets.all(20),
@@ -209,19 +518,19 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
             ),
             child: Column(
               children: [
-                // QR Code
+                // QR Code to hơn - tăng từ 240 lên 280
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Image.network(
                     provider.qrCodeUrl!,
-                    width: 240,
-                    height: 240,
+                    width: 500,
+                    height: 500,
                     fit: BoxFit.contain,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(
-                        width: 240,
-                        height: 240,
+                        width: 400 ,
+                        height: 400,
                         color: _backgroundLight,
                         child: Center(
                           child: Column(
@@ -249,8 +558,8 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                     },
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
-                        width: 240,
-                        height: 240,
+                        width: 280,
+                        height: 280,
                         color: _backgroundLight,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -273,7 +582,6 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                 
                 const SizedBox(height: 24),
                 
-                // Divider
                 Container(
                   height: 1,
                   color: _borderColor,
@@ -281,31 +589,9 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                 
                 const SizedBox(height: 20),
                 
-                // Amount
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Số tiền cần thanh toán',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _textSecondary,
-                      ),
-                    ),
-                    Text(
-                      CurrencyUtils.format(widget.amount),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: _primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
+                // ĐÃ BỎ PHẦN HIỂN THỊ SỐ TIỀN CẦN THANH TOÁN
+                // Chỉ giữ lại mã đơn hàng và ngân hàng
                 
-                const SizedBox(height: 12),
-                
-                // Order ID
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -336,7 +622,6 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                 
                 const SizedBox(height: 12),
                 
-                // Bank info
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -391,7 +676,6 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
             ),
           ),
           
-          // Instructions
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 24),
             padding: const EdgeInsets.all(20),
@@ -419,7 +703,7 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Hướng dẫn thanh toán',
+                      'Hướng dẫn thanh toán SePay',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -431,8 +715,8 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                 const SizedBox(height: 16),
                 _buildInstructionStep(
                   number: '1',
-                  title: 'Mở ứng dụng ngân hàng',
-                  description: 'MB Bank, Vietcombank, Techcombank, hoặc bất kỳ ngân hàng nào hỗ trợ VietQR',
+                  title: 'Mở ứng dụng ngân hàng (MB Bank)',
+                  description: 'Dùng app MB Bank hoặc bất kỳ ngân hàng nào hỗ trợ VietQR',
                 ),
                 _buildInstructionStep(
                   number: '2',
@@ -442,12 +726,12 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                 _buildInstructionStep(
                   number: '3',
                   title: 'Quét mã QR bên trên',
-                  description: 'Hệ thống sẽ tự động nhập số tiền và nội dung',
+                  description: 'Hệ thống sẽ tự động nhập số tiền và nội dung ${widget.orderId}',
                 ),
                 _buildInstructionStep(
                   number: '4',
                   title: 'Xác nhận thanh toán',
-                  description: 'Kiểm tra lại thông tin và xác nhận chuyển khoản',
+                  description: 'Kiểm tra lại thông tin (số tiền, nội dung) và xác nhận chuyển khoản',
                 ),
               ],
             ),
@@ -455,8 +739,7 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
           
           const SizedBox(height: 24),
           
-          // Waiting status
-          if (provider.status == 'pending')
+          if (provider.status == 'pending' || provider.status == 'unpaid')
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -481,17 +764,28 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Tự động kiểm tra mỗi 5 giây',
+                    'Tự động kiểm tra mỗi $_pollingIntervalSeconds giây',
                     style: TextStyle(
                       fontSize: 13,
                       color: _textSecondary,
                     ),
                   ),
+                  if (!_isCountingDown)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Thời gian chờ còn lại: ${_getRemainingPollingTime()}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           
-          // Timeout info
           if (_isCountingDown)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -549,7 +843,7 @@ class _VietQRPaymentScreenState extends State<VietQRPaymentScreen> {
     String title;
     String subtitle;
     
-    if (status == 'success') {
+    if (status == 'paid' || status == 'success') {
       backgroundColor = _successColor;
       icon = Icons.check_circle;
       title = 'Thanh toán thành công';

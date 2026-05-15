@@ -228,7 +228,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 const Text('Đơn hàng của tôi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 TextButton(
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersScreen())),
-                  child: const Text('Lịch sử đơn hàng', style: TextStyle(color: Color(0xFF0B2A1F))),
+                  child: const Text('Lịch sử mua hàng >>', style: TextStyle(color: Color(0xFF0B2A1F))),
                 ),
               ],
             ),
@@ -436,7 +436,13 @@ class _AccountScreenState extends State<AccountScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await Provider.of<AuthProvider>(context, listen: false).logout();
+              
+              // 👈 THÊM: Lấy authProvider và dừng kiểm tra tài khoản
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              authProvider.stopAccountStatusCheck(); // THÊM DÒNG NÀY
+              
+              await authProvider.logout();
+              
               if (mounted) {
                 setState(() {
                   _hasLoadedStats = false;

@@ -10,6 +10,7 @@ class CartItem {
   final int quantity;
   final double subtotal;
   final int stockQuantity;
+  final bool isActive;  // 👈 THÊM DÒNG NÀY
   final Product? product;
 
   CartItem({
@@ -22,6 +23,7 @@ class CartItem {
     required this.quantity,
     required this.subtotal,
     required this.stockQuantity,
+    required this.isActive,  // 👈 THÊM DÒNG NÀY
     this.product,
   });
 
@@ -35,7 +37,8 @@ class CartItem {
       price: (json['price'] ?? 0).toDouble(),
       quantity: json['quantity'] ?? 0,
       subtotal: (json['subtotal'] ?? 0).toDouble(),
-      stockQuantity: json['stockQuantity'] ?? 0,  // THÊM: Lấy từ API hoặc product
+      stockQuantity: json['stockQuantity'] ?? 0,
+      isActive: json['isActive'] ?? true,  // 👈 THÊM DÒNG NÀY
       product: json['product'] != null
           ? Product.fromJson(json['product'])
           : null,
@@ -52,7 +55,8 @@ class CartItem {
       'price': price,
       'quantity': quantity,
       'subtotal': subtotal,
-      'stockQuantity': stockQuantity,  // THÊM
+      'stockQuantity': stockQuantity,
+      'isActive': isActive,  // 👈 THÊM DÒNG NÀY
       'product': product?.toJson(),
     };
   }
