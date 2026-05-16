@@ -12,7 +12,7 @@ class OrderProvider extends ChangeNotifier {
   String? _searchKeyword;
   
   int _currentPage = 1;
-  static const int _pageSize = 9;
+  static const int _pageSize = 7;
 
   // Getters
   List<OrderListDto> get orders => _orders;

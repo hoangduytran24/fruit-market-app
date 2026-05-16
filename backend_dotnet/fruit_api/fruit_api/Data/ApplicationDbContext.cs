@@ -27,6 +27,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<PendingTransaction> PendingTransactions { get; set; }
     public DbSet<Inventory> Inventories { get; set; }
 
+    // THÊM DÒNG NÀY
+    public DbSet<ReturnRequest> ReturnRequests { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -83,6 +86,49 @@ public class ApplicationDbContext : DbContext
 
             entity.ToTable(t => t.HasCheckConstraint("CK_Inventory_Status",
                 "status IN ('in_stock', 'expired', 'sold_out')"));
+        });
+
+        // ==================== RETURN REQUEST CONFIGURATION ====================
+        modelBuilder.Entity<ReturnRequest>(entity =>
+        {
+            entity.HasKey(e => e.ReturnId);
+
+            entity.Property(e => e.ReturnId)
+                .HasDefaultValueSql("CONCAT('RT', RIGHT(CONVERT(VARCHAR, ABS(CHECKSUM(NEWID()))), 6))");
+
+            entity.Property(e => e.Status)
+                .HasDefaultValue("pending");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("GETDATE()");
+
+            // Relationships
+            entity.HasOne(e => e.Order)
+                .WithMany()
+                .HasForeignKey(e => e.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Indexes
+            entity.HasIndex(e => e.OrderId)
+                .HasDatabaseName("IX_ReturnRequests_OrderId");
+
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_ReturnRequests_UserId");
+
+            entity.HasIndex(e => e.Status)
+                .HasDatabaseName("IX_ReturnRequests_Status");
+
+            entity.HasIndex(e => e.CreatedAt)
+                .HasDatabaseName("IX_ReturnRequests_CreatedAt");
+
+            // Check constraints
+            entity.ToTable(t => t.HasCheckConstraint("CK_ReturnRequests_Status",
+                "status IN ('pending', 'approved', 'rejected', 'completed')"));
         });
 
         // ==================== UNIQUE CONSTRAINTS ====================

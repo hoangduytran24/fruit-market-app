@@ -16,7 +16,6 @@ public class UserManagementService : IUserManagementService
         _context = context;
     }
 
-    // Hàm GenerateId giống như trong ProductService
     private static string GenerateId(string prefix)
     {
         var ts = DateTime.UtcNow.ToString("yyMMddHHmmss");

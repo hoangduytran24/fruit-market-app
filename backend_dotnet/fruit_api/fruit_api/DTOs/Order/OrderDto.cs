@@ -41,6 +41,7 @@ public class OrderDto
     public string ReceiverName { get; set; } = string.Empty;
     public string ReceiverPhone { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
     public string? VoucherCode { get; set; }
 }

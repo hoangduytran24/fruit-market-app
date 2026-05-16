@@ -135,7 +135,7 @@ class ImageUtils {
     if (customBaseUrl != null) {
       baseUrl = customBaseUrl;
     } else if (isAndroid) {
-      baseUrl = 'http://10.0.2.2:5289';
+      baseUrl = 'http://10.0.2.2:5280';
     } else if (isIOS) {
       baseUrl = 'http://localhost:5280';
     } else {

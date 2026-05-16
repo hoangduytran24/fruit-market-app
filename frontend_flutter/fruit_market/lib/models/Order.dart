@@ -11,11 +11,12 @@ class Order {
   final String status;
   final String? paymentMethod;
   final String? paymentStatus;
-  final String? paymentId;  // THÊM DÒNG NÀY
+  final String? paymentId;
   final String deliveryAddress;
   final String receiverName;
   final String receiverPhone;
   final DateTime createdAt;
+  final DateTime? completedAt;
   final List<OrderItem>? items;
   final String? voucherCode;
 
@@ -30,11 +31,12 @@ class Order {
     required this.status,
     this.paymentMethod,
     this.paymentStatus,
-    this.paymentId,  // THÊM DÒNG NÀY
+    this.paymentId,
     required this.deliveryAddress,
     required this.receiverName,
     required this.receiverPhone,
     required this.createdAt,
+    this.completedAt,
     this.items,
     this.voucherCode,
   });
@@ -52,13 +54,16 @@ class Order {
       status: json['status'] ?? 'pending',
       paymentMethod: json['paymentMethod'],
       paymentStatus: json['paymentStatus'] ?? 'unpaid',
-      paymentId: json['paymentId'],  // THÊM DÒNG NÀY
+      paymentId: json['paymentId'],
       deliveryAddress: json['deliveryAddress'] ?? '',
       receiverName: json['receiverName'] ?? '',
       receiverPhone: json['receiverPhone'] ?? '',
       createdAt: json['createdAt'] != null 
           ? DateTime.parse(json['createdAt']) 
           : DateTime.now(),
+      completedAt: json['completedAt'] != null  
+          ? DateTime.parse(json['completedAt']) 
+          : null,
       items: json['items'] != null
           ? (json['items'] as List)
               .map((e) => OrderItem.fromJson(e))
@@ -81,11 +86,12 @@ class Order {
       'status': status,
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus,
-      'paymentId': paymentId,  // THÊM DÒNG NÀY
+      'paymentId': paymentId,
       'deliveryAddress': deliveryAddress,
       'receiverName': receiverName,
       'receiverPhone': receiverPhone,
       'createdAt': createdAt.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
       'items': items?.map((e) => e.toJson()).toList(),
       'voucherCode': voucherCode,
     };

@@ -1,4 +1,6 @@
 ﻿#pragma warning disable SKEXP0001 // Tắt cảnh báo Experimental của Semantic Kernel
+
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -13,6 +15,12 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using fruit_api.Plugins;
+
+// ========== THÊM DÒNG NÀY ĐỂ CẤU HÌNH MÚI GIỜ VIỆT NAM ==========
+AppContext.SetSwitch("System.Globalization.InvariantMode", false);
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+// Hoặc dùng cách đơn giản hơn:
+// TimeZoneInfo.Local = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -100,6 +108,8 @@ builder.Services.AddScoped<BankTransactionService>();
 builder.Services.AddSingleton<ChatHistoryService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IReturnService, ReturnService>();
+builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();

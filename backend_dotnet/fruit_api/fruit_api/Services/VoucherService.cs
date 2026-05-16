@@ -573,7 +573,6 @@ public class VoucherService : IVoucherService
             userVoucher.IsUsed = true;
             userVoucher.UsedAt = now;
 
-            // ========== THÊM CODE NÀY ==========
             // Tăng số lượt đã dùng của voucher
             voucher.UsedQuantity++;
             // ================================

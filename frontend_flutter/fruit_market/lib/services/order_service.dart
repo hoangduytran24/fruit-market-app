@@ -20,13 +20,21 @@ class OrderService {
     }
   }
 
-  // Lấy chi tiết đơn hàng
+  // Lấy chi tiết đơn hàng - ĐÃ THÊM DEBUG
   Future<Order> getOrderById(String orderId) async {
     try {
       final response = await ApiService.get('orders/$orderId');
       
+      print('=== GET ORDER BY ID ===');
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print('Parsed data: $data');
+        print('Status value: ${data['status']}');
+        print('CompletedAt value: ${data['completedAt']}');
+        
         return Order.fromJson(data);
       } else {
         throw Exception('Không thể tải chi tiết đơn hàng');
@@ -111,7 +119,7 @@ class OrderService {
     }
   }
 
-  // ========== THÊM MỚI: Tạo đơn từ danh sách sản phẩm được chọn ==========
+  // Tạo đơn từ danh sách sản phẩm được chọn
   Future<Order?> createOrderFromSelectedItems({
     required List<Map<String, dynamic>> items,
     required String deliveryAddress,

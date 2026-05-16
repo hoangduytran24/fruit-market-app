@@ -201,6 +201,7 @@ public class OrderService : IOrderService
             ReceiverName = order.ReceiverName,
             ReceiverPhone = order.ReceiverPhone,
             CreatedAt = order.CreatedAt,
+            CompletedAt = order.CompletedAt,
             VoucherCode = order.OrderVoucher?.Voucher?.VoucherCode,
             Items = order.OrderItems?.Select(oi => new OrderItemDto
             {

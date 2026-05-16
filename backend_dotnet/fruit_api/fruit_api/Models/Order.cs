@@ -52,6 +52,9 @@ public class Order
     [Column("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
+    [Column("completedAt")]
+    public DateTime? CompletedAt { get; set; }
+
     // Navigation properties
     public User? User { get; set; }
     public ICollection<OrderItem>? OrderItems { get; set; }

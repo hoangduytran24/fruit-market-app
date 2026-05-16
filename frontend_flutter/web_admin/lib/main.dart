@@ -11,7 +11,7 @@ import 'providers/user_provider.dart';
 import 'providers/voucher_provider.dart';
 import 'providers/statistics_provider.dart';
 import 'providers/inventory_provider.dart';
-
+import 'providers/return_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'services/auth_service.dart';
@@ -48,6 +48,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AdminVoucherProvider()),
         ChangeNotifierProvider(create: (_) => AdminStatisticsProvider()),
         ChangeNotifierProvider(create: (_) => InventoryProvider()),
+        ChangeNotifierProvider(create: (_) => ReturnProvider()),
       ],
       child: MaterialApp(
         title: 'Admin - GreenFruit Market',

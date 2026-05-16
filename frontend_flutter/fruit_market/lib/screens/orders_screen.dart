@@ -26,12 +26,25 @@ class _OrdersScreenState extends State<OrdersScreen>
   static const _blue = Color(0xFF2196F3);
   static const _teal = Colors.teal;
   static const _red = Color(0xFFEF5350);
+  static const _purple = Color(0xFF9C27B0);  // THÊM: màu cho return_requested
+  static const _brown = Color(0xFF795548);   // THÊM: màu cho return_approved
+  static const _amber = Color(0xFFFFC107);   // THÊM: màu cho returned
   static const _background = Color(0xFFF9F9F9);
   static const _cardWhite = Colors.white;
   static const _textDark = Color(0xFF2C3E2F);
   static const _textLight = Color(0xFF7C9A7E);
 
-  static const _statuses = ['pending', 'processing', 'shipping', 'completed', 'cancelled'];
+  // THÊM: Các trạng thái đơn hàng bao gồm cả trạng thái trả hàng
+  static const _statuses = [
+    'pending', 
+    'processing', 
+    'shipping', 
+    'completed', 
+    'return_requested', 
+    'return_approved', 
+    'returned', 
+    'cancelled'
+  ];
   
   static const _statusConfig = {
     'pending': {
@@ -61,6 +74,27 @@ class _OrdersScreenState extends State<OrdersScreen>
       'color': _primaryGreen,
       'bg': Color(0xFFE8F5E9),
       'border': Color(0xFFC8E6C9),
+    },
+    'return_requested': {
+      'label': 'Yêu cầu trả hàng',
+      'icon': Icons.request_page,
+      'color': _purple,
+      'bg': Color(0xFFF3E5F5),
+      'border': Color(0xFFE1BEE7),
+    },
+    'return_approved': {
+      'label': 'Chấp nhận trả hàng',
+      'icon': Icons.check_circle_outline,
+      'color': _brown,
+      'bg': Color(0xFFEFEBE9),
+      'border': Color(0xFFD7CCC8),
+    },
+    'returned': {
+      'label': 'Đã trả hàng',
+      'icon': Icons.assignment_returned,
+      'color': _amber,
+      'bg': Color(0xFFFFF8E1),
+      'border': Color(0xFFFFECB3),
     },
     'cancelled': {
       'label': 'Đã hủy',
@@ -316,9 +350,6 @@ class _OrderCard extends StatelessWidget {
   static const _textDark = Color(0xFF2C3E2F);
   static const _textLight = Color(0xFF7C9A7E);
   static const _borderLight = Color(0xFFE8F0E8);
-  
-  // Lưu ý: Backend đã cộng phí ship 25k vào totalAmount và finalAmount
-  // Nên hiển thị trực tiếp finalAmount là tổng tiền đã bao gồm ship
 
   const _OrderCard({
     required this.order,
@@ -412,7 +443,6 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  // Thông tin người nhận
   Widget _buildReceiverInfo() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14),
@@ -543,7 +573,6 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  // Footer với nút Chi tiết - Hiển thị tổng tiền đã bao gồm phí ship
   Widget _buildFooter(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -553,7 +582,6 @@ class _OrderCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Tổng tiền (đã bao gồm phí ship)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -563,7 +591,7 @@ class _OrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                formatCurrency(order.finalAmount), // Đã bao gồm phí ship 25k
+                formatCurrency(order.finalAmount),
                 style: const TextStyle(
                   fontSize: 18, 
                   fontWeight: FontWeight.bold, 
@@ -573,7 +601,6 @@ class _OrderCard extends StatelessWidget {
             ],
           ),
           
-          // Nút Chi tiết
           GestureDetector(
             onTap: () {
               Navigator.push(

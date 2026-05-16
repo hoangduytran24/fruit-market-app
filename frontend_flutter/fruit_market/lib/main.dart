@@ -12,6 +12,7 @@ import 'providers/payment_provider.dart';
 import 'providers/category_provider.dart';
 import 'providers/real_time_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/return_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -87,6 +88,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PaymentProvider()),
         ChangeNotifierProvider(create: (_) => RealTimeProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => ReturnProvider()),
       ],
       child: AppInitializer(  // 👈 BỌC AppInitializer VÀO ĐÂY
         child: MaterialApp(

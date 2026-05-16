@@ -209,7 +209,7 @@ public class FruitShopPlugin
     [Description("Lấy danh sách sản phẩm sắp xếp theo giá (tăng hoặc giảm)")]
     public async Task<List<ProductInfo>> SortProductsByPriceAsync(
         [Description("Cách sắp xếp: 'asc' cho tăng dần, 'desc' cho giảm dần")] string order = "asc",
-        [Description("Số lượng sản phẩm muốn lấy (mặc định 10)")] int limit = 10)
+        [Description("Số lượng sản phẩm muốn lấy (mặc định 10)")] int limit = 20)
     {
         using var connection = CreateConnection();
         var sortOrder = order.ToLower() == "desc" ? "DESC" : "ASC";

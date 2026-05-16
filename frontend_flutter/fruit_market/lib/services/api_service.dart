@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
@@ -92,6 +94,81 @@ class ApiService {
     }
   }
 
+  /// Gửi request multipart/form-data (hỗ trợ upload file)
+  static Future<http.Response> postMultipart(
+    String endpoint, {
+    Map<String, String>? fields,
+    File? imageFile,
+    String? imageFieldName,
+  }) async {
+    try {
+      final token = await getToken();
+      
+      // Tạo multipart request
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl$endpoint'),
+      );
+      
+      // Thêm headers
+      request.headers['Accept'] = 'application/json';
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      
+      // Thêm các field text
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+      
+      // Thêm file ảnh nếu có
+      if (imageFile != null) {
+        final fileName = imageFile.path.split('/').last;
+        final fileExtension = fileName.split('.').last.toLowerCase();
+        
+        // Xác định content type dựa trên extension
+        String contentType;
+        switch (fileExtension) {
+          case 'png':
+            contentType = 'image/png';
+            break;
+          case 'jpg':
+          case 'jpeg':
+            contentType = 'image/jpeg';
+            break;
+          case 'gif':
+            contentType = 'image/gif';
+            break;
+          case 'webp':
+            contentType = 'image/webp';
+            break;
+          default:
+            contentType = 'image/jpeg';
+        }
+        
+        final stream = http.ByteStream(imageFile.openRead());
+        final length = await imageFile.length();
+        
+        final multipartFile = http.MultipartFile(
+          imageFieldName ?? 'ImageFile',
+          stream,
+          length,
+          filename: fileName,
+          contentType: MediaType.parse(contentType),
+        );
+        request.files.add(multipartFile);
+      }
+      
+      // Gửi request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   static Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
@@ -156,18 +233,18 @@ class ApiService {
     throw Exception('Lỗi: ${response.statusCode}');
   }
 
-static Future<Map<String, dynamic>> checkAccountStatus() async {
-  try {
-    final response = await get('Auth/check-status');
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else if (response.statusCode == 403) {
-      final error = json.decode(response.body);
-      throw Exception(error['code'] == 'ACCOUNT_LOCKED' ? 'ACCOUNT_LOCKED' : 'Unknown error');
+  static Future<Map<String, dynamic>> checkAccountStatus() async {
+    try {
+      final response = await get('Auth/check-status');
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else if (response.statusCode == 403) {
+        final error = json.decode(response.body);
+        throw Exception(error['code'] == 'ACCOUNT_LOCKED' ? 'ACCOUNT_LOCKED' : 'Unknown error');
+      }
+      throw Exception('Failed to check status');
+    } catch (e) {
+      rethrow;
     }
-    throw Exception('Failed to check status');
-  } catch (e) {
-    rethrow;
   }
-}
 }
