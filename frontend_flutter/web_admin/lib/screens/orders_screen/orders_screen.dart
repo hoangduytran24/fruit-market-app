@@ -32,6 +32,9 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
     'shipping': 'Đang giao',
     'completed': 'Thành công',
     'cancelled': 'Đã hủy',
+    'returned':'Đã trả hàng',
+    'return_approved': 'Đã duyệt trả hàng',
+    'return_requested': 'xác nhận trả hàng',
   };
 
   final Map<String, String> _returnStatusDisplay = {
@@ -40,8 +43,11 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
     'approved': 'Đã duyệt',
     'rejected': 'Từ chối',
     'completed': 'Hoàn tất',
+    'returned':'Đã trả hàng',
+    'return_approved': 'Đã duyệt trả hàng',
+    'return_requested': 'xác nhận trả hàng',
   };
-
+//  bổ sung
   @override
   void initState() {
     super.initState();
@@ -83,6 +89,9 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
       case 'shipping': return Colors.purple;
       case 'completed': return Colors.green;
       case 'cancelled': return Colors.red;
+      case 'returned': return const Color.fromARGB(255, 62, 39, 176);
+      case 'return_approved': return Colors.teal;
+      case 'return_requested': return Colors.cyan; 
       default: return Colors.grey;
     }
   }
