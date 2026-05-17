@@ -64,8 +64,6 @@ class OrderProvider extends ChangeNotifier {
       final success = await _orderService.updateOrderStatus(orderId, status);
       
       if (success) {
-        // Vì status trong Model là 'final', ta không gán trực tiếp được.
-        // Giải pháp chuẩn: Tải lại dữ liệu từ Server để đồng bộ UI chính xác 100%
         await fetchOrders(); 
         return true;
       }
@@ -75,6 +73,40 @@ class OrderProvider extends ChangeNotifier {
       return false;
     }
   }
+
+  /// ========== THÊM MỚI: Đánh dấu giao thất bại ==========
+  Future<bool> markDeliveryFailed(String orderId, {String? reason}) async {
+    try {
+      final success = await _orderService.markDeliveryFailed(orderId, reason: reason);
+      
+      if (success) {
+        await fetchOrders(); // Refresh danh sách
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("❌ Mark Delivery Failed Error: $e");
+      return false;
+    }
+  }
+  // =====================================================
+
+  /// ========== THÊM MỚI: Hủy đơn giao thất bại và hoàn kho ==========
+  Future<bool> cancelDeliveryFailedOrder(String orderId) async {
+    try {
+      final success = await _orderService.cancelDeliveryFailedOrder(orderId);
+      
+      if (success) {
+        await fetchOrders(); // Refresh danh sách
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("❌ Cancel Delivery Failed Order Error: $e");
+      return false;
+    }
+  }
+  // =================================================================
 
   // --- Các hàm điều khiển giao diện ---
 

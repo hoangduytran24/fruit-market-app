@@ -29,19 +29,6 @@ class OrderDetailDialog extends StatelessWidget {
     required this.shippingFee,
   });
 
-  Map<String, String>? _getNextStatusInfo(String currentStatus) {
-    switch (currentStatus) {
-      case 'pending':
-        return {'label': 'Duyệt đơn', 'next': 'processing'};
-      case 'processing':
-        return {'label': 'Giao hàng', 'next': 'shipping'};
-      case 'shipping':
-        return {'label': 'Hoàn tất', 'next': 'completed'};
-      default:
-        return null;
-    }
-  }
-
   int _getTotalQuantity() {
     return order.items.fold(0, (sum, item) => sum + item.quantity);
   }
@@ -69,10 +56,132 @@ class OrderDetailDialog extends StatelessWidget {
     }
   }
 
+  Future<void> _handleMarkDeliveryFailed(BuildContext context) async {
+  final TextEditingController reasonController = TextEditingController();
+  
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.deepOrange.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.local_shipping, color: Colors.deepOrange, size: 20),
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            'Giao thất bại',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Vui lòng nhập lý do:'),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reasonController,
+            autofocus: true,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'VD: Khách không nghe máy, sai địa chỉ...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.deepOrange,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: const Text('Xác nhận'),
+        ),
+      ],
+    ),
+  );
+  
+  if (confirmed == true && context.mounted) {
+    final success = await context.read<OrderProvider>()
+        .markDeliveryFailed(order.orderId, reason: reasonController.text.trim().isEmpty ? null : reasonController.text.trim());
+    
+    if (context.mounted) {
+      // ✅ KHÔNG gọi Navigator.pop(context) ở đây nữa
+      // Vì dialog đã tự đóng khi chọn Xác nhận
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? "Đã cập nhật: Giao thất bại" : "Cập nhật thất bại"),
+          backgroundColor: success ? Colors.deepOrange : Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+}
+
+  Future<void> _handleCancelDeliveryFailed(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xác nhận hủy đơn'),
+        content: const Text(
+          'Đơn hàng này đã giao thất bại. Hủy đơn sẽ hoàn lại số lượng sản phẩm vào kho. Bạn có chắc chắn muốn hủy?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Xác nhận hủy'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true && context.mounted) {
+      final success = await context.read<OrderProvider>()
+          .cancelDeliveryFailedOrder(order.orderId);
+      
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? "Đã hủy đơn hàng và hoàn lại kho" : "Hủy đơn thất bại"),
+            backgroundColor: success ? Colors.green : Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final nextInfo = _getNextStatusInfo(order.status);
-    final bool isCompleted = order.status == 'completed';
+    final isCompleted = order.status == 'completed';
+    final isShipping = order.status == 'shipping';
+    final isDeliveryFailed = order.status == 'delivery_failed';
+    final isCancellable = order.status == 'pending' || order.status == 'processing';
     final int totalQuantity = _getTotalQuantity();
     final double productTotal = _getProductTotal();
     final double finalTotal = _getFinalTotalWithShipping();
@@ -401,77 +510,124 @@ class OrderDetailDialog extends StatelessWidget {
             // Bottom Actions
             Padding(
               padding: EdgeInsets.all(innerPadding),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  // Nút đóng
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text("Đóng"),
+                  ),
+                  
+                  // Nút xuất hóa đơn (chỉ khi completed)
+                  if (isCompleted)
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        await PdfHelper.generateInvoice(
+                          order: order,
+                          formatCurrency: _safeFormatCurrency,
+                          formatDate: formatDate,
+                        );
+                      },
+                      icon: const Icon(Icons.picture_as_pdf, size: 18),
+                      label: const Text("Xuất hóa đơn"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text("Đóng"),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  if (isCompleted)
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          await PdfHelper.generateInvoice(
-                            order: order,
-                            formatCurrency: _safeFormatCurrency,
-                            formatDate: formatDate,
+                  
+                  // Nút cho trạng thái đang giao (shipping)
+                  if (isShipping) ...[
+                    // Nút hoàn thành
+                    ElevatedButton(
+                      onPressed: () async {
+                        final success = await context.read<OrderProvider>()
+                            .updateOrderStatus(order.orderId, 'completed');
+                        
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(success ? "Đã cập nhật: Thành công" : "Cập nhật thất bại"),
+                              backgroundColor: success ? Colors.green : Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                            ),
                           );
-                        },
-                        icon: const Icon(Icons.picture_as_pdf, size: 18),
-                        label: const Text("Xuất hóa đơn"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade700,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                    )
-                  else if (nextInfo != null)
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          final success = await context.read<OrderProvider>()
-                              .updateOrderStatus(order.orderId, nextInfo['next']!);
-                          
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  success 
-                                      ? "Đã cập nhật: ${statusMap[nextInfo['next']]}" 
-                                      : "Cập nhật thất bại",
-                                ),
-                                backgroundColor: success ? Colors.green : Colors.red,
-                                behavior: SnackBarBehavior.floating,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryGreen,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          nextInfo['label']!,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                      child: const Text("Hoàn thành"),
+                    ),
+                    // Nút giao thất bại
+                    ElevatedButton(
+                      onPressed: () => _handleMarkDeliveryFailed(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepOrange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
+                      child: const Text("Giao thất bại"),
+                    ),
+                  ],
+                  
+                  // Nút hủy đơn cho trạng thái delivery_failed
+                  if (isDeliveryFailed)
+                    ElevatedButton(
+                      onPressed: () => _handleCancelDeliveryFailed(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text("Hủy đơn + Hoàn kho"),
+                    ),
+                  
+                  // Nút duyệt đơn (pending/processing)
+                  if (isCancellable)
+                    ElevatedButton(
+                      onPressed: () async {
+                        String nextStatus = order.status == 'pending' ? 'processing' : 'shipping';
+                        String buttonLabel = order.status == 'pending' ? 'Duyệt đơn' : 'Giao hàng';
+                        
+                        final success = await context.read<OrderProvider>()
+                            .updateOrderStatus(order.orderId, nextStatus);
+                        
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(success ? "Đã cập nhật: $buttonLabel" : "Cập nhật thất bại"),
+                              backgroundColor: success ? Colors.green : Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(order.status == 'pending' ? "Duyệt đơn" : "Giao hàng"),
                     ),
                 ],
               ),

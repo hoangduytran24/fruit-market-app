@@ -42,8 +42,6 @@ class OrderService {
   /// Cập nhật trạng thái đơn hàng - Khớp với UpdateOrderStatusDto của Backend
   Future<bool> updateOrderStatus(String orderId, String status) async {
     try {
-      // Backend yêu cầu UpdateOrderStatusDto { string Status }
-      // ApiService.put sẽ nhận Map này và gửi đi dưới dạng JSON
       final response = await ApiService.put(
         'Orders/$orderId/status',
         body: {'status': status}, 
@@ -60,6 +58,45 @@ class OrderService {
       return false;
     }
   }
+
+  /// ========== THÊM MỚI: Đánh dấu giao thất bại ==========
+  Future<bool> markDeliveryFailed(String orderId, {String? reason}) async {
+    try {
+      final response = await ApiService.post(
+        'Orders/$orderId/delivery-failed',
+        body: reason != null ? {'reason': reason} : {},
+      );
+      
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print('❌ Server returned ${response.statusCode}: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error in markDeliveryFailed: $e');
+      return false;
+    }
+  }
+  // =====================================================
+
+  /// ========== THÊM MỚI: Hủy đơn giao thất bại và hoàn kho ==========
+  Future<bool> cancelDeliveryFailedOrder(String orderId) async {
+    try {
+      final response = await ApiService.post('Orders/$orderId/cancel-delivery-failed');
+      
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        print('❌ Server returned ${response.statusCode}: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error in cancelDeliveryFailedOrder: $e');
+      return false;
+    }
+  }
+  // =================================================================
 
   /// Hủy đơn hàng (Post request tới [HttpPost("{id}/cancel")])
   Future<bool> cancelOrder(String orderId) async {

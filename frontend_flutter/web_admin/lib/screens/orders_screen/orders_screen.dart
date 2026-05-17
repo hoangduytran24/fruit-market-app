@@ -25,17 +25,20 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
   final Color primaryGreen = const Color(0xFF1A5F3A);
   final double shippingFee = 25000;
 
+  // ========== THÊM: delivery_failed vào status display ==========
   final Map<String, String> _statusDisplay = {
     'Tất cả': 'Tất cả',
     'pending': 'Chờ duyệt',
     'processing': 'Đang gói',
     'shipping': 'Đang giao',
+    'delivery_failed': 'Giao thất bại',  // THÊM MỚI
     'completed': 'Thành công',
     'cancelled': 'Đã hủy',
-    'returned':'Đã trả hàng',
+    'returned': 'Đã trả hàng',
     'return_approved': 'Đã duyệt trả hàng',
-    'return_requested': 'xác nhận trả hàng',
+    'return_requested': 'Xác nhận trả hàng',
   };
+  // ============================================================
 
   final Map<String, String> _returnStatusDisplay = {
     'Tất cả': 'Tất cả',
@@ -44,7 +47,7 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
     'rejected': 'Từ chối',
     'completed': 'Hoàn tất',
   };
-//  bổ sung
+
   @override
   void initState() {
     super.initState();
@@ -79,19 +82,22 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
   String _formatDate(DateTime date) =>
       "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
 
+  // ========== THÊM: Màu cho delivery_failed ==========
   Color _getStatusColor(String status) {
     switch (status) {
       case 'pending': return Colors.orange;
       case 'processing': return Colors.blue;
       case 'shipping': return Colors.purple;
+      case 'delivery_failed': return Colors.deepOrange;  // THÊM MỚI
       case 'completed': return Colors.green;
       case 'cancelled': return Colors.red;
       case 'returned': return const Color.fromARGB(255, 62, 39, 176);
       case 'return_approved': return Colors.teal;
-      case 'return_requested': return Colors.cyan; 
+      case 'return_requested': return Colors.cyan;
       default: return Colors.grey;
     }
   }
+  // ====================================================
 
   Color _getReturnStatusColor(String status) {
     switch (status) {
