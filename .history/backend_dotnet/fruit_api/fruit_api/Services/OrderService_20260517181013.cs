@@ -450,6 +450,38 @@ public class OrderService : IOrderService
             _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
         }
 
+        // ========== MỚI: XÓA CÁC ITEMS ĐÃ ĐẶT HÀNG KHỎI GIỎ HÀNG ==========
+        try
+        {
+            var userCart = await _context.Carts
+                .Include(c => c.CartItems)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (userCart != null && userCart.CartItems != null)
+            {
+                // Chỉ xóa những items trong giỏ hàng mà được đặt hàng
+                var itemsToRemove = userCart.CartItems
+                    .Where(ci => createOrderDto.Items.Any(oi => oi.ProductId == ci.ProductId))
+                    .ToList();
+
+                if (itemsToRemove.Any())
+                {
+                    _context.CartItems.RemoveRange(itemsToRemove);
+                    userCart.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    
+                    _logger.LogInformation(
+                        $"Removed {itemsToRemove.Count} items from cart after creating order {order.OrderId} for user {userId}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error removing ordered items from cart for user {userId}");
+            // Không throw exception, order đã được tạo thành công, không muốn fail vì xóa cart
+        }
+        // ======================================================================
+
         return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
     }
 

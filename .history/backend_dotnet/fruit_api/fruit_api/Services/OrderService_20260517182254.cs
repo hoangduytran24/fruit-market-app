@@ -450,6 +450,39 @@ public class OrderService : IOrderService
             _logger.LogError(ex, $"Failed to send real-time notifications for order {order.OrderId}");
         }
 
+        // ========== FIX: XÓA CHỈ CÁC ITEMS ĐÃ ĐẶT HÀNG KHỎI GIỎ ==========
+        try
+        {
+            var userCart = await _context.Carts
+                .Include(c => c.CartItems)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (userCart != null && userCart.CartItems != null && userCart.CartItems.Any())
+            {
+                // Tìm các items trong giỏ hàng mà được đặt hàng (so sánh ProductId)
+                var itemProductIds = createOrderDto.Items.Select(item => item.ProductId).ToHashSet();
+                var itemsToRemove = userCart.CartItems
+                    .Where(ci => itemProductIds.Contains(ci.ProductId))
+                    .ToList();
+
+                if (itemsToRemove.Any())
+                {
+                    _context.CartItems.RemoveRange(itemsToRemove);
+                    userCart.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                    
+                    _logger.LogInformation(
+                        $"✅ Removed {itemsToRemove.Count} ordered items from cart. Order: {order.OrderId}, User: {userId}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"⚠️ Error removing ordered items from cart. User: {userId}, Order: {order.OrderId}");
+            // Không throw exception, đơn hàng đã được tạo thành công, không muốn fail vì lỗi cart
+        }
+        // =====================================================================
+
         return await GetOrderByIdAsync(order.OrderId) ?? throw new Exception("Failed to create order");
     }
 

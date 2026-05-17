@@ -205,7 +205,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             voucherCode: voucherCode ?? widget.voucherCode,
           );
         } else {
-          // ========== SỬA: Gọi API mới thay vì createOrderFromCart ==========
           order = await orderProvider.createOrderFromSelectedItems(
             items: _getSelectedOrderItems(),
             deliveryAddress: _addressController.text.trim(),
@@ -232,9 +231,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               if (result == true) {
                 if (!widget.isBuyNow) {
                   final cartProvider = Provider.of<CartProvider>(context, listen: false);
-                  // ========== SỬA: Xóa các item đã chọn thay vì clear toàn bộ ==========
-                  final selectedProductIds = widget.items.map((item) => item.productId).toList();
-                  await cartProvider.removeSelectedItemsByIds(selectedProductIds);
+                  // ========== SỬA: Chỉ refresh giỏ hàng, KHÔNG xóa (backend đã tự xóa) ==========
+                  await cartProvider.refreshCart();
+                  // =====================================================
                 }
                 _showSuccessDialog();
               }
@@ -271,7 +270,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           voucherCode: voucherCode ?? widget.voucherCode,
         );
       } else {
-        // ========== SỬA: Gọi API mới thay vì createOrderFromCart ==========
         order = await orderProvider.createOrderFromSelectedItems(
           items: _getSelectedOrderItems(),
           deliveryAddress: _addressController.text.trim(),
@@ -288,9 +286,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (order != null) {
           if (!widget.isBuyNow) {
             final cartProvider = Provider.of<CartProvider>(context, listen: false);
-            // ========== SỬA: Xóa các item đã chọn thay vì clear toàn bộ ==========
-            final selectedProductIds = widget.items.map((item) => item.productId).toList();
-            await cartProvider.removeSelectedItemsByIds(selectedProductIds);
+            // ========== SỬA: Chỉ refresh giỏ hàng, KHÔNG xóa ==========
+            await cartProvider.refreshCart();
+            // =====================================================
           }
           
           if (mounted) {

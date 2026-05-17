@@ -377,7 +377,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     
     final subtotal = order.totalAmount - _shippingFee;
     final hasDiscount = order.discountAmount > 0;
-    final finalTotal = order.totalAmount;
+    final finalTotal = order.finalAmount;
 
     final isReturning = order.status == 'return_requested' || 
                         order.status == 'return_approved' || 

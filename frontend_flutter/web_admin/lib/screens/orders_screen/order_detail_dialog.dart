@@ -51,7 +51,7 @@ class OrderDetailDialog extends StatelessWidget {
   }
 
   double _getFinalTotalWithShipping() {
-    return order.totalAmount;
+    return order.finalAmount;
   }
 
   String _safeFormatCurrency(double amount) {

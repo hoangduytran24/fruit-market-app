@@ -43,9 +43,6 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
     'approved': 'Đã duyệt',
     'rejected': 'Từ chối',
     'completed': 'Hoàn tất',
-    'returned':'Đã trả hàng',
-    'return_approved': 'Đã duyệt trả hàng',
-    'return_requested': 'xác nhận trả hàng',
   };
 //  bổ sung
   @override

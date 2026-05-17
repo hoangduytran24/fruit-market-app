@@ -78,7 +78,10 @@ class CartProvider extends ChangeNotifier {
     try {
       _cart = await _cartService.getCart();
       if (_cart?.items.isNotEmpty ?? false) {
-        _selectedItems = Set.from(_cart!.items.map((e) => e.cartItemId));
+        // ========== SỬA: KHÔNG auto-select tất cả items, để user chọn ==========
+        // Người dùng phải tự chọn items họ muốn mua, không tự động chọn hết
+        _selectedItems.clear();
+        // ==============================================================
       } else {
         _selectedItems.clear();
       }
@@ -134,7 +137,9 @@ class CartProvider extends ChangeNotifier {
     try {
       _cart = await _cartService.getCart();
       if (_cart?.items.isNotEmpty ?? false) {
-        _selectedItems = Set.from(_cart!.items.map((e) => e.cartItemId));
+        // ========== SỬA: KHÔNG auto-select, để user chọn ==========
+        _selectedItems.clear();
+        // =========================================================
       } else {
         _selectedItems.clear();
       }

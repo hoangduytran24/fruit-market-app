@@ -20,4 +20,7 @@ public interface IVoucherService
     Task<bool> SaveVoucherForUserAsync(string userId, string voucherCode);
     Task<IEnumerable<UserVoucherDto>> GetUserSavedVouchersAsync(string userId);
     Task<bool> UseSavedVoucherAsync(string userId, string userVoucherId);
+    Task<bool> HasUserUsedVoucherAsync(string userId, string voucherCode);
+    Task MarkVoucherAsUsedAsync(string userId, string voucherCode);
+    Task MarkVoucherAsUnusedAsync(string userId, string voucherCode);
 }

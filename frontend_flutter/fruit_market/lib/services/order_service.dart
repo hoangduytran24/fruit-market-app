@@ -57,21 +57,24 @@ class OrderService {
     double shippingFee = 25000,
   }) async {
     try {
-      final response = await ApiService.post(
-        'orders/buy-now',
-        body: {
-          'productId': productId,
-          'quantity': quantity,
-          'paymentMethod': paymentMethod,
-          'deliveryAddress': deliveryAddress,
-          'receiverName': receiverName,
-          'receiverPhone': receiverPhone,
-          'voucherCode': voucherCode,
-          'shippingFee': shippingFee,
-        },
-      );
+      final body = {
+        'productId': productId,
+        'quantity': quantity,
+        'paymentMethod': paymentMethod,
+        'deliveryAddress': deliveryAddress,
+        'receiverName': receiverName,
+        'receiverPhone': receiverPhone,
+        'shippingFee': shippingFee,
+      };
       
-      if (response.statusCode == 200) {
+      // Chỉ thêm voucherCode nếu có giá trị hợp lệ
+      if (voucherCode != null && voucherCode.isNotEmpty && voucherCode != 'null') {
+        body['voucherCode'] = voucherCode;
+      }
+      
+      final response = await ApiService.post('orders/buy-now', body: body);
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
         return Order.fromJson(data);
       } else {
@@ -94,19 +97,22 @@ class OrderService {
     double shippingFee = 25000,
   }) async {
     try {
-      final response = await ApiService.post(
-        'orders',
-        body: {
-          'deliveryAddress': deliveryAddress,
-          'paymentMethod': paymentMethod,
-          'receiverName': receiverName,
-          'receiverPhone': receiverPhone,
-          'voucherCode': voucherCode,
-          'shippingFee': shippingFee,
-        },
-      );
+      final body = {
+        'deliveryAddress': deliveryAddress,
+        'paymentMethod': paymentMethod,
+        'receiverName': receiverName,
+        'receiverPhone': receiverPhone,
+        'shippingFee': shippingFee,
+      };
       
-      if (response.statusCode == 200) {
+      // Chỉ thêm voucherCode nếu có giá trị hợp lệ
+      if (voucherCode != null && voucherCode.isNotEmpty && voucherCode != 'null') {
+        body['voucherCode'] = voucherCode;
+      }
+      
+      final response = await ApiService.post('orders', body: body);
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
         return Order.fromJson(data);
       } else {
@@ -120,7 +126,7 @@ class OrderService {
   }
 
   // Tạo đơn từ danh sách sản phẩm được chọn
-  Future<Order?> createOrderFromSelectedItems({
+  Future<Order> createOrderFromSelectedItems({
     required List<Map<String, dynamic>> items,
     required String deliveryAddress,
     required String paymentMethod,
@@ -130,18 +136,26 @@ class OrderService {
     double shippingFee = 25000,
   }) async {
     try {
-      final response = await ApiService.post(
-        'orders/from-selected-items',
-        body: {
-          'items': items,
-          'deliveryAddress': deliveryAddress,
-          'paymentMethod': paymentMethod,
-          'receiverName': receiverName,
-          'receiverPhone': receiverPhone,
-          'voucherCode': voucherCode,
-          'shippingFee': shippingFee,
-        },
-      );
+      final body = {
+        'items': items.map((item) => {
+          'productId': item['productId'],
+          'quantity': item['quantity'],
+        }).toList(),
+        'deliveryAddress': deliveryAddress,
+        'paymentMethod': paymentMethod,
+        'receiverName': receiverName,
+        'receiverPhone': receiverPhone,
+        'shippingFee': shippingFee,
+      };
+      
+      // Chỉ thêm voucherCode nếu có giá trị hợp lệ
+      if (voucherCode != null && voucherCode.isNotEmpty && voucherCode != 'null') {
+        body['voucherCode'] = voucherCode;
+      }
+      
+      print('📦 Creating order from selected items: $body');
+      
+      final response = await ApiService.post('orders/from-selected-items', body: body);
       
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);

@@ -21,6 +21,14 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreeTerms = false;
+  
+  // ========== THÊM: Biến cho password strength indicator ==========
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasLowercase = false;
+  bool _hasNumber = false;
+  bool _hasSpecialChar = false;
+  // ===============================================================
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -51,13 +59,54 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     ));
 
     _animationController.forward();
+    
+    // ========== THÊM: Lắng nghe thay đổi mật khẩu ==========
+    _passwordController.addListener(_updatePasswordStrength);
   }
+  
+  // ========== THÊM: Cập nhật strength indicators ==========
+  void _updatePasswordStrength() {
+    final password = _passwordController.text;
+    setState(() {
+      _hasMinLength = password.length >= 8;
+      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = password.contains(RegExp(r'[a-z]'));
+      _hasNumber = password.contains(RegExp(r'[0-9]'));
+      _hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    });
+  }
+  
+  double get _passwordStrength {
+    int count = 0;
+    if (_hasMinLength) count++;
+    if (_hasUppercase) count++;
+    if (_hasLowercase) count++;
+    if (_hasNumber) count++;
+    if (_hasSpecialChar) count++;
+    return count / 5;
+  }
+  
+  Color get _passwordStrengthColor {
+    final strength = _passwordStrength;
+    if (strength <= 0.4) return Colors.red;
+    if (strength <= 0.7) return Colors.orange;
+    return Colors.green;
+  }
+  
+  String get _passwordStrengthText {
+    final strength = _passwordStrength;
+    if (strength <= 0.4) return 'Yếu';
+    if (strength <= 0.7) return 'Trung bình';
+    return 'Mạnh';
+  }
+  // =========================================================
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _passwordController.removeListener(_updatePasswordStrength);
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _animationController.dispose();
@@ -111,7 +160,6 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    // SỬ DỤNG BIẾN: Nếu chiều rộng > 800 thì coi là Desktop
     final isDesktop = size.width > 800;
 
     return Scaffold(
@@ -120,12 +168,11 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       body: SafeArea(
         child: Center(
           child: Container(
-            // Tối ưu Responsive: Thu nhỏ form lại nếu là Desktop để không bị loãng giao diện
-            constraints: BoxConstraints(maxWidth: isDesktop ? 450 : 500), 
+            constraints: BoxConstraints(maxWidth: isDesktop ? 450 : 500),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               padding: EdgeInsets.symmetric(
-                horizontal: isDesktop ? 40.0 : 24.0, // Tăng padding nếu là Desktop
+                horizontal: isDesktop ? 40.0 : 24.0,
               ),
               child: FadeTransition(
                 opacity: _fadeAnimation,
@@ -258,25 +305,128 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
             validator: (v) => (v == null || !RegExp(r'^(0[3|5|7|8|9])[0-9]{8}$').hasMatch(v)) ? 'Số điện thoại không hợp lệ' : null,
           ),
           const SizedBox(height: 16),
+          // ========== SỬA: Password field với validator mạnh hơn ==========
           _buildPasswordField(
             controller: _passwordController,
             hintText: 'Mật khẩu',
             isVisible: _isPasswordVisible,
             onToggle: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
-            validator: (v) => (v == null || v.length < 6) ? 'Mật khẩu tối thiểu 6 ký tự' : null,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'Vui lòng nhập mật khẩu';
+              if (v.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
+              if (!v.contains(RegExp(r'[A-Z]'))) return 'Mật khẩu phải có ít nhất 1 chữ hoa';
+              if (!v.contains(RegExp(r'[a-z]'))) return 'Mật khẩu phải có ít nhất 1 chữ thường';
+              if (!v.contains(RegExp(r'[0-9]'))) return 'Mật khẩu phải có ít nhất 1 số';
+              if (!v.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) return 'Mật khẩu phải có ít nhất 1 ký tự đặc biệt';
+              return null;
+            },
           ),
+          // ========== THÊM: Password strength indicator ==========
+          if (_passwordController.text.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildPasswordStrengthIndicator(),
+          ],
           const SizedBox(height: 16),
           _buildPasswordField(
             controller: _confirmPasswordController,
             hintText: 'Xác nhận mật khẩu',
             isVisible: _isConfirmPasswordVisible,
             onToggle: () => setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible),
-            validator: (v) => (v != _passwordController.text) ? 'Mật khẩu không khớp' : null,
+            validator: (v) {
+              if (v != _passwordController.text) return 'Mật khẩu không khớp';
+              return null;
+            },
           ),
         ],
       ),
     );
   }
+  
+  // ========== THÊM: Password strength indicator widget ==========
+  Widget _buildPasswordStrengthIndicator() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: _passwordStrength,
+                  backgroundColor: Colors.grey[200],
+                  color: _passwordStrengthColor,
+                  minHeight: 6,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: _passwordStrengthColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _passwordStrengthColor.withOpacity(0.3)),
+              ),
+              child: Text(
+                _passwordStrengthText,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: _passwordStrengthColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            _buildRequirementChip('Ít nhất 8 ký tự', _hasMinLength),
+            _buildRequirementChip('Chữ hoa (A-Z)', _hasUppercase),
+            _buildRequirementChip('Chữ thường (a-z)', _hasLowercase),
+            _buildRequirementChip('Số (0-9)', _hasNumber),
+            _buildRequirementChip('Ký tự đặc biệt (!@#...)', _hasSpecialChar),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildRequirementChip(String text, bool isMet) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isMet ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isMet ? Colors.green : Colors.grey,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isMet ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 12,
+            color: isMet ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10,
+              color: isMet ? Colors.green[700] : Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  // ===============================================================
 
   Widget _buildTermsCheckbox() {
     return Row(

@@ -154,6 +154,33 @@ public class VouchersController : ControllerBase
     }
 
     /// <summary>
+    /// [USER] Kiểm tra user đã dùng voucher này chưa
+    /// </summary>
+    [HttpGet("check-usage")]
+    [Authorize]
+    public async Task<IActionResult> CheckVoucherUsage([FromQuery] string voucherCode)
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { message = "Không tìm thấy thông tin người dùng" });
+
+            var hasUsed = await _voucherService.HasUserUsedVoucherAsync(userId, voucherCode);
+            return Ok(new
+            {
+                voucherCode = voucherCode,
+                hasUsed = hasUsed,
+                message = hasUsed ? "Bạn đã sử dụng voucher này rồi" : "Bạn chưa sử dụng voucher này"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// [USER] Lưu voucher (kiểu Shopee)
     /// </summary>
     [HttpPost("save")]

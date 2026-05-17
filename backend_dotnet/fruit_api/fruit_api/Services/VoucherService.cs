@@ -573,9 +573,7 @@ public class VoucherService : IVoucherService
             userVoucher.IsUsed = true;
             userVoucher.UsedAt = now;
 
-            // Tăng số lượt đã dùng của voucher
             voucher.UsedQuantity++;
-            // ================================
 
             await _context.SaveChangesAsync();
 
@@ -585,6 +583,102 @@ public class VoucherService : IVoucherService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error using saved voucher for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    // ==================== CHECK USER USAGE ====================
+
+    public async Task<bool> HasUserUsedVoucherAsync(string userId, string voucherCode)
+    {
+        try
+        {
+            var voucher = await _context.Vouchers
+                .FirstOrDefaultAsync(v => v.VoucherCode == voucherCode.ToUpper().Trim());
+
+            if (voucher == null)
+                return false;
+
+            var hasUsed = await _context.UserVouchers
+                .AnyAsync(uv => uv.UserId == userId
+                    && uv.VoucherId == voucher.VoucherId
+                    && uv.IsUsed == true);
+
+            return hasUsed;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking if user used voucher: {UserId}, {VoucherCode}", userId, voucherCode);
+            return false;
+        }
+    }
+
+    public async Task MarkVoucherAsUsedAsync(string userId, string voucherCode)
+    {
+        try
+        {
+            var voucher = await _context.Vouchers
+                .FirstOrDefaultAsync(v => v.VoucherCode == voucherCode.ToUpper().Trim());
+
+            if (voucher == null)
+            {
+                _logger.LogWarning("Voucher not found: {VoucherCode}", voucherCode);
+                return;
+            }
+
+            var userVoucher = await _context.UserVouchers
+                .FirstOrDefaultAsync(uv => uv.UserId == userId
+                    && uv.VoucherId == voucher.VoucherId
+                    && uv.IsUsed == false);
+
+            if (userVoucher != null)
+            {
+                userVoucher.IsUsed = true;
+                userVoucher.UsedAt = DateTime.Now;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Marked voucher {VoucherCode} as used for user {UserId}", voucherCode, userId);
+            }
+            else
+            {
+                _logger.LogWarning("No saved voucher found for user {UserId} with code {VoucherCode}", userId, voucherCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error marking voucher as used: {UserId}, {VoucherCode}", userId, voucherCode);
+            throw;
+        }
+    }
+
+    public async Task MarkVoucherAsUnusedAsync(string userId, string voucherCode)
+    {
+        try
+        {
+            var voucher = await _context.Vouchers
+                .FirstOrDefaultAsync(v => v.VoucherCode == voucherCode.ToUpper().Trim());
+
+            if (voucher == null)
+            {
+                _logger.LogWarning("Voucher not found: {VoucherCode}", voucherCode);
+                return;
+            }
+
+            var userVoucher = await _context.UserVouchers
+                .FirstOrDefaultAsync(uv => uv.UserId == userId
+                    && uv.VoucherId == voucher.VoucherId
+                    && uv.IsUsed == true);
+
+            if (userVoucher != null)
+            {
+                userVoucher.IsUsed = false;
+                userVoucher.UsedAt = null;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Marked voucher {VoucherCode} as unused for user {UserId}", voucherCode, userId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error marking voucher as unused: {UserId}, {VoucherCode}", userId, voucherCode);
             throw;
         }
     }

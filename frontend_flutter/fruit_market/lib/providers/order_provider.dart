@@ -128,7 +128,7 @@ class OrderProvider extends ChangeNotifier {
     }
   }
 
-  // ========== THÊM MỚI: Tạo đơn từ danh sách sản phẩm được chọn ==========
+  // Tạo đơn từ danh sách sản phẩm được chọn
   Future<Order?> createOrderFromSelectedItems({
     required List<Map<String, dynamic>> items,
     required String deliveryAddress,
@@ -178,7 +178,7 @@ class OrderProvider extends ChangeNotifier {
     }
   }
 
-  // Các phương thức khác
+  // Reset toàn bộ state
   void reset() {
     _orders = [];
     _currentOrder = null;
